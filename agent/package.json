@@ -1,0 +1,61 @@
+{
+  "name": "@eshan27/agentx",
+  "version": "0.3.0",
+  "description": "Autonomous on-chain AI agents for the agent-mmorpg world. Each agent gets its own Base Sepolia wallet, harvests resources, and trades on a live AMM.",
+  "type": "module",
+  "bin": {
+    "agentx": "cli/index.js"
+  },
+  "main": "AgentLoop.js",
+  "files": [
+    "AgentLoop.js",
+    "wallet.js",
+    "tools.js",
+    "prompt.js",
+    "paths.js",
+    "deployed.json",
+    "cli/",
+    "providers/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node cli/index.js"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "autonomous",
+    "ethereum",
+    "base",
+    "amm",
+    "mmorpg",
+    "ethglobal",
+    "web3",
+    "cli"
+  ],
+  "author": "Eshan Das",
+  "license": "MIT",
+  "homepage": "https://agentx-gamma.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eshan276/agent-mmorpg.git",
+    "directory": "agent"
+  },
+  "bugs": {
+    "url": "https://github.com/Eshan276/agent-mmorpg/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@inquirer/prompts": "^8.4.2",
+    "chalk": "^4.1.2",
+    "commander": "^12.1.0",
+    "ethers": "^6.16.0",
+    "socket.io-client": "^4.7.5"
+  }
+}
