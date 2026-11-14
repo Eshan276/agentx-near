@@ -10,6 +10,7 @@
 import {
   Account,
   JsonRpcProvider,
+  FailoverRpcProvider,
   KeyPair,
   KeyPairSigner,
   actions,
@@ -21,6 +22,17 @@ import { scryptSync, randomBytes, createCipheriv, createDecipheriv } from 'node:
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { WALLETS_DIR } from './paths.js';
+
+// Public testnet RPCs are slow or drop connections from time to time: sign and read through a failover set.
+const FALLBACK_RPCS = ['https://test.rpc.fastnear.com', 'https://near-testnet.drpc.org', 'https://rpc.testnet.near.org'];
+const providers = new Map();
+function rpcProvider(rpcUrl) {
+  if (!providers.has(rpcUrl)) {
+    const urls = [rpcUrl, ...FALLBACK_RPCS].filter((u, i, a) => u && a.indexOf(u) === i);
+    providers.set(rpcUrl, new FailoverRpcProvider(urls.map((url) => new JsonRpcProvider({ url }, { retries: 1, backoff: 1.5, wait: 300 }))));
+  }
+  return providers.get(rpcUrl);
+}
 
 const PASSPHRASE = process.env.WALLET_PASSPHRASE || 'agentx-near-default';
 const GOLD_DECIMALS = 18n;
@@ -119,7 +131,7 @@ export function goldToFloat(base) {
 
 /** GGLD balance of `accountId` as a float. */
 export async function viewGold(rpcUrl, contractId, accountId) {
-  const provider = new JsonRpcProvider({ url: rpcUrl });
+  const provider = rpcProvider(rpcUrl);
   const bal = await provider.callFunction({ contractId, method: 'ft_balance_of', args: { account_id: accountId } });
   return goldToFloat(bal ?? '0');
 }
@@ -133,7 +145,7 @@ const lastNonce = new Map();
 async function signSwapDelegate({ accountId, agentKey, rpcUrl, contractId, method, args }) {
   const keyPair = typeof agentKey === 'string' ? KeyPair.fromString(agentKey) : agentKey;
   const signer  = new KeyPairSigner(keyPair);
-  const account = new Account(accountId, new JsonRpcProvider({ url: rpcUrl }), signer);
+  const account = new Account(accountId, rpcProvider(rpcUrl), signer);
   const action  = actions.functionCall(method, args, SWAP_GAS, 0n);
 
   let delegate = await account.createMetaTransaction({
@@ -181,7 +193,7 @@ export async function executeSwap({ socket, accountId, agentKey, contract, direc
   if (direction === 'sell') {
     let r;
     try {
-      r = await socket.timeout(15000).emitWithAck('agent:sell_voucher', { resourceId, units: n });
+      r = await socket.timeout(40000).emitWithAck('agent:sell_voucher', { resourceId, units: n });
     } catch (e) {
       return { ok: false, error: `server did not answer the sell voucher request (${e?.message ?? e})` };
     }
@@ -194,7 +206,7 @@ export async function executeSwap({ socket, accountId, agentKey, contract, direc
       voucher: r.voucher,
     };
   } else {
-    const provider = new JsonRpcProvider({ url: rpcUrl });
+    const provider = rpcProvider(rpcUrl);
     const [q, bal] = await Promise.all([
       provider.callFunction({ contractId, method: 'preview_buy', args: { resource_id: resourceId, units: String(n) } }),
       provider.callFunction({ contractId, method: 'ft_balance_of', args: { account_id: accountId } }).catch(() => null),
@@ -217,7 +229,7 @@ export async function executeSwap({ socket, accountId, agentKey, contract, direc
 
   let res;
   try {
-    res = await socket.timeout(60000).emitWithAck('agent:swap', { direction, resourceId, units: n, signedDelegate });
+    res = await socket.timeout(120000).emitWithAck('agent:swap', { direction, resourceId, units: n, signedDelegate });
   } catch (e) {
     const timedOut = /timed out|timeout/i.test(String(e?.message ?? ''));
     return { ok: false, error: timedOut
