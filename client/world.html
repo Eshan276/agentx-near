@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>World View — Agent MMORPG</title>
+  <title>AGENTX on NEAR — World View</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
@@ -14,6 +14,59 @@
       color: #aaffaa; font: 12px monospace;
       background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 4px;
     }
+
+    #hud-title { color: #fff; font-weight: bold; letter-spacing: 1px; }
+    #hud-title .near { color: #00ec97; }
+    #chain-chip {
+      display: none; margin-top: 6px; font-size: 11px; color: #889;
+      align-items: center; gap: 6px;
+    }
+    #chain-chip.on { display: flex; }
+    #chain-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: #00ec97; box-shadow: 0 0 5px #00ec97; flex-shrink: 0; }
+    #chain-chip a { color: #7fe0c8; text-decoration: none; }
+    #chain-chip a:hover { text-decoration: underline; }
+
+    /* ── On-chain activity feed (bottom-left) ── */
+    #chain-feed {
+      position: fixed; left: 10px; bottom: 10px; z-index: 10;
+      width: 400px; max-height: 42vh;
+      background: rgba(8, 10, 20, 0.82);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+      font-family: monospace; color: #ccc;
+      display: none; flex-direction: column; overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    #chain-feed.on { display: flex; }
+    #cf-header {
+      padding: 7px 10px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+      color: #00ec97; border-bottom: 1px solid rgba(255,255,255,0.07);
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
+    #cf-header .dot { width: 7px; height: 7px; border-radius: 50%; background: #00ec97; box-shadow: 0 0 5px #00ec97; animation: cfpulse 2s infinite; }
+    @keyframes cfpulse { 50% { opacity: 0.35; } }
+    #cf-list { overflow-y: auto; padding: 2px 10px 4px; }
+    #cf-list::-webkit-scrollbar { width: 4px; }
+    #cf-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .cf-row {
+      display: grid; grid-template-columns: 54px 1fr; gap: 2px 8px;
+      padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 12px; line-height: 1.4;
+    }
+    .cf-row:last-child { border-bottom: none; }
+    .cf-kind {
+      grid-row: span 2; align-self: start; text-align: center;
+      font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase;
+      padding: 2px 0; border-radius: 3px; border: 1px solid currentColor;
+    }
+    .cf-kind.account { color: #b78cff; }
+    .cf-kind.sell    { color: #ffd700; }
+    .cf-kind.buy     { color: #88ccff; }
+    .cf-text { color: #ddd; word-break: break-word; }
+    .cf-agent { color: #fff; font-weight: bold; }
+    .cf-meta { font-size: 10px; color: #556; display: flex; gap: 10px; }
+    .cf-meta a { color: #7fe0c8; text-decoration: none; }
+    .cf-meta a:hover { text-decoration: underline; }
+    .cf-empty { color: #556; font-size: 11px; padding: 10px 0; text-align: center; }
 
     /* ── Hamburger ── */
     #menu-btn {
@@ -94,6 +147,12 @@
     .ac-name { font-size: 12px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 6px; }
     .ac-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .ac-zone { font-size: 9px; color: #6688bb; }
+    .ac-acct { font-size: 10px; margin: -2px 0 7px; display: flex; align-items: center; gap: 5px; word-break: break-all; }
+    .ac-acct a { color: #7fe0c8; text-decoration: none; }
+    .ac-acct a:hover { text-decoration: underline; }
+    .ac-acct .pending { color: #667; font-style: italic; }
+    .ac-acct-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: #00ec97; box-shadow: 0 0 4px #00ec97; }
+    .ac-acct-dot.pending { background: #555; box-shadow: none; }
     .ac-bars { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
     .ac-bar-row { display: flex; align-items: center; gap: 6px; }
     .ac-bar-label { font-size: 9px; color: #556; width: 16px; flex-shrink: 0; }
@@ -211,34 +270,17 @@
 
     /* ── Tooltip ── */
     #tooltip {
-      display: none; position: fixed; z-index: 100; width: 200px;
+      display: none; position: fixed; z-index: 100; width: 240px;
       background: rgba(10,10,20,0.95); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 6px; padding: 10px 12px; font-family: monospace;
       font-size: 11px; color: #ddd; pointer-events: none;
       box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
     .tt-name { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 2px; }
-    .tt-ens  { font-size: 10px; color: #b78cff; margin-bottom: 2px; letter-spacing: 0.3px; display: flex; align-items: center; gap: 4px; }
-    .tt-ens-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .tt-ens-real .tt-ens-dot { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
-    .tt-ens-mock .tt-ens-dot { background: #666; }
-    .tt-ens-mock { color: #8a76b0; }
-    .tt-ens-link {
-      pointer-events: auto;        /* override the tooltip's pointer-events:none */
-      color: #b78cff; text-decoration: none; font-size: 10px;
-      padding: 0 3px; border-radius: 3px; cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .tt-ens-link:hover { background: rgba(183,140,255,0.15); color: #fff; }
-    .tt-ens .tt-addr { color: #555; font-size: 9px; margin-left: auto; }
-    .tt-og   { font-size: 9px; color: #88dd88; margin-top: 2px; display: flex; align-items: center; gap: 4px; letter-spacing: 0.3px; }
-    .tt-og-dot { width: 6px; height: 6px; border-radius: 50%; background: #88dd88; box-shadow: 0 0 4px #88dd88; flex-shrink: 0; }
-    .tt-og-link {
-      pointer-events: auto; color: #88dd88; text-decoration: none; font-size: 9px;
-      padding: 0 3px; border-radius: 3px; margin-left: auto; cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .tt-og-link:hover { background: rgba(136,221,136,0.15); color: #fff; }
+    .tt-acct { font-size: 10px; color: #7fe0c8; margin-bottom: 2px; letter-spacing: 0.2px; display: flex; align-items: center; gap: 4px; word-break: break-all; }
+    .tt-acct-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: #00ec97; box-shadow: 0 0 4px #00ec97; }
+    .tt-acct.pending { color: #888; font-style: italic; }
+    .tt-acct.pending .tt-acct-dot { background: #666; box-shadow: none; }
     .tt-zone { font-size: 10px; color: #88aaff; margin-bottom: 8px; }
     .tt-row  { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
     .tt-label{ font-size: 10px; color: #888; width: 18px; flex-shrink: 0; }
@@ -258,11 +300,19 @@
     <span></span><span></span><span></span>
   </button>
 
-  <div id="hud">👁 World View — <span id="count">0</span> agent(s) online</div>
+  <div id="hud">
+    <div><span id="hud-title">AGENTX <span class="near">on NEAR</span></span> — <span id="count">0</span> agent(s) online</div>
+    <div id="chain-chip"><span class="dot"></span><span id="chain-net">NEAR</span> · game <a id="chain-contract" href="#" target="_blank" rel="noopener"></a></div>
+  </div>
+
+  <div id="chain-feed">
+    <div id="cf-header"><span class="dot"></span><span id="cf-title">On-chain activity · NEAR testnet</span></div>
+    <div id="cf-list"><div class="cf-empty">Waiting for on-chain events…</div></div>
+  </div>
 
   <div id="panel">
     <div id="panel-header">
-      <h2>World Status</h2>
+      <h2>AGENTX on NEAR</h2>
       <div id="world-stats">
         <div class="wstat">Agents <span id="ws-agents">0</span></div>
         <div class="wstat">Nodes <span id="ws-nodes">—</span></div>
@@ -335,15 +385,15 @@
         const res  = await fetch('/api/prices');
         const data = await res.json();
         if (!data.ready) {
-          status.textContent = 'Web3 disabled (no chain connection)';
-          list.innerHTML = '<div class="shop-empty">AMM offline — set BASE_SEPOLIA_RPC_URL + SERVER_PRIVATE_KEY in server/.env</div>';
+          status.textContent = 'NEAR disabled (no chain connection)';
+          list.innerHTML = '<div class="shop-empty">AMM offline — set AGENTX_ROOT_ACCOUNT_ID + keys in server/.env (npm run deploy:testnet)</div>';
           conts.innerHTML = '';
           return;
         }
         const entries = Object.entries(data.prices).sort((a, b) => b[1] - a[1]);
         if (entries.length === 0) {
           status.textContent = 'No pools seeded';
-          list.innerHTML = '<div class="shop-empty">No prices yet — run seed.js</div>';
+          list.innerHTML = '<div class="shop-empty">No pools yet — run npm run deploy:testnet</div>';
           return;
         }
         status.textContent = `${entries.length} pools · auto-refresh 30s`;
@@ -368,9 +418,14 @@
           drawSparkline(`spark-${id}`, pts);
         }
         const c = data.contracts ?? {};
+        const ex = c.explorerUrl ?? 'https://testnet.nearblocks.io';
+        const acct = id => id
+          ? `<a href="${ex}/address/${encodeURIComponent(id)}" target="_blank" rel="noopener">${id}</a>`
+          : '—';
         conts.innerHTML = `
-          <div>GGLD: <a href="https://sepolia.basescan.org/address/${c.goldToken}" target="_blank">${c.goldToken ?? '—'}</a></div>
-          <div>AMM: <a href="https://sepolia.basescan.org/address/${c.gameAMM}"  target="_blank">${c.gameAMM  ?? '—'}</a></div>
+          <div>Network: NEAR ${c.network ?? 'testnet'}</div>
+          <div>Game + AMM contract: ${acct(c.contractId)}</div>
+          <div>Root account: ${acct(c.rootAccountId)}</div>
         `;
       } catch (err) {
         status.textContent = '';

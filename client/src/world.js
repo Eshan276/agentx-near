@@ -8,8 +8,27 @@ const countEl   = document.getElementById('count');
 const wsAgents  = document.getElementById('ws-agents');
 const wsNodes   = document.getElementById('ws-nodes');
 const wsItems   = document.getElementById('ws-items');
-const panelBody = document.getElementById('panel-body');
+const panelBody = document.getElementById('tab-agents');
 const noAgentsMsg = document.getElementById('no-agents-msg');
+const chainChip   = document.getElementById('chain-chip');
+const chainNet    = document.getElementById('chain-net');
+const chainLink   = document.getElementById('chain-contract');
+const feedPanel   = document.getElementById('chain-feed');
+const feedTitle   = document.getElementById('cf-title');
+const feedList    = document.getElementById('cf-list');
+
+// ── NEAR helpers ──────────────────────────────────────────────────────────
+const DEFAULT_EXPLORER = 'https://testnet.nearblocks.io';
+let _chain = null; // latest state.chain from the server
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+const explorerBase = () => (_chain?.explorerUrl || DEFAULT_EXPLORER).replace(/\/$/, '');
+const accountUrl   = id   => `${explorerBase()}/address/${encodeURIComponent(id)}`;
+const txUrl        = hash => `${explorerBase()}/txns/${encodeURIComponent(hash)}`;
+const shortHash    = h => (h && h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : (h ?? ''));
+const netLabel     = () => `NEAR ${_chain?.network ?? 'testnet'}`;
 
 // Harvest node frame / depth config (mirrors GameScene)
 const NODE_TEXTURES = { tree: 'ts_nature', rock_node: 'ts_nature', bush: 'ts_nature' };
@@ -347,7 +366,10 @@ class WorldScene extends Phaser.Scene {
     socket.on('disconnect', reason => console.log('[WorldView] disconnected:', reason));
   }
 
-  _onWorldState({ players = [], worldItems = [], harvestNodes = [], agentTargets = [], chatMessages = [] }) {
+  _onWorldState({ players = [], worldItems = [], harvestNodes = [], agentTargets = [], chatMessages = [], chain = null, chainFeed = [] }) {
+    _chain = chain;
+    this._updateChain(chain, chainFeed ?? []);
+
     // Sync dynamic layers
     this._syncWorldItems(worldItems);
     this._syncHarvestNodes(harvestNodes);
@@ -377,6 +399,59 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  // ── NEAR chain chip + on-chain activity feed ────────────────────────────
+
+  _updateChain(chain, feed) {
+    if (chainChip) {
+      chainChip.classList.toggle('on', Boolean(chain?.contractId));
+      if (chain?.contractId) {
+        if (chainNet) chainNet.textContent = netLabel();
+        const href = accountUrl(chain.contractId);
+        if (chainLink.getAttribute('href') !== href) {
+          chainLink.href = href;
+          chainLink.textContent = chain.contractId;
+          chainLink.title = `View ${chain.contractId} on NearBlocks`;
+        }
+      }
+    }
+
+    if (!feedPanel || !feedList) return;
+    const show = Boolean(chain) || feed.length > 0;
+    feedPanel.classList.toggle('on', show);
+    if (!show) return;
+    if (feedTitle) feedTitle.textContent = `On-chain activity · ${netLabel()}`;
+
+    // Server keeps the feed newest-first; sort defensively anyway.
+    const items = [...feed].sort((a, b) => (b.t ?? 0) - (a.t ?? 0)).slice(0, 8);
+    const html = items.length
+      ? items.map(ev => {
+          const kind = ['account', 'sell', 'buy'].includes(ev.kind) ? ev.kind : 'account';
+          const label = kind === 'account' ? 'join' : kind;
+          // Server text usually starts with the agent id / account — bold it in place
+          // instead of repeating the name.
+          const text = String(ev.text ?? '');
+          const name = String(ev.agentId ?? '');
+          const textHtml = name && text.startsWith(name)
+            ? `<span class="cf-agent">${esc(name)}</span>${esc(text.slice(name.length))}`
+            : `<span class="cf-agent">${esc(name)}</span> ${esc(text)}`;
+          const time = ev.t ? new Date(ev.t).toLocaleTimeString([], { hour12: false }) : '';
+          const tx = ev.txHash
+            ? `<a href="${txUrl(ev.txHash)}" target="_blank" rel="noopener" title="${esc(ev.txHash)}">tx ${esc(shortHash(ev.txHash))} ↗</a>`
+            : '<span>tx pending…</span>';
+          return `<div class="cf-row">
+            <span class="cf-kind ${kind}">${label}</span>
+            <div class="cf-text">${textHtml}</div>
+            <div class="cf-meta"><span>${time}</span>${tx}</div>
+          </div>`;
+        }).join('')
+      : '<div class="cf-empty">Waiting for on-chain events…</div>';
+    // Only touch the DOM when content changes so links stay clickable.
+    if (feedList._html !== html) {
+      feedList.innerHTML = html;
+      feedList._html = html;
+    }
+  }
+
   // ── Side panel ──────────────────────────────────────────────────────────
 
   _updatePanel(players, worldItems, harvestNodes) {
@@ -388,23 +463,28 @@ class WorldScene extends Phaser.Scene {
     if (noAgentsMsg) noAgentsMsg.style.display = players.length ? 'none' : 'block';
 
     for (const p of players) {
-      const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [] } = p;
+      const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, nearReady } = p;
       const hpPct = Math.round(hp / maxHp * 100);
       const enPct = Math.round(energy / maxEnergy * 100);
       const tint  = this._remotes.get(agentId)?.tint ?? '#aaa';
 
       const invHtml = inventory.length
-        ? inventory.map(i => `<span class="ac-inv-item">${i.name ?? i.id}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
+        ? inventory.map(i => `<span class="ac-inv-item">${esc(i.name ?? i.id)}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
         : '<span class="ac-inv-empty">empty</span>';
+
+      const acctHtml = walletAddress && nearReady
+        ? `<div class="ac-acct"><span class="ac-acct-dot"></span><a href="${accountUrl(walletAddress)}" target="_blank" rel="noopener" title="View on NearBlocks">${esc(walletAddress)} ↗</a></div>`
+        : `<div class="ac-acct"><span class="ac-acct-dot pending"></span><span class="pending">${walletAddress ? `${esc(walletAddress)} · ` : ''}creating account…</span></div>`;
 
       const html = `
         <div class="ac-header">
           <div class="ac-name">
             <div class="ac-dot" style="background:${tint}"></div>
-            ${agentId}
+            ${esc(agentId)}
           </div>
-          <div class="ac-zone">${zone ?? ''}</div>
+          <div class="ac-zone">${esc(zone)}</div>
         </div>
+        ${acctHtml}
         <div class="ac-bars">
           <div class="ac-bar-row">
             <span class="ac-bar-label">HP</span>
@@ -425,7 +505,7 @@ class WorldScene extends Phaser.Scene {
         <div class="ac-inv">${invHtml}</div>
       `;
 
-      let card = panelBody.querySelector(`[data-agent="${agentId}"]`);
+      let card = [...panelBody.querySelectorAll('.agent-card')].find(c => c.dataset.agent === agentId);
       if (!card) {
         card = document.createElement('div');
         card.className = 'agent-card';
@@ -433,7 +513,11 @@ class WorldScene extends Phaser.Scene {
         panelBody.appendChild(card);
       }
       card.className = `agent-card${alive ? '' : ' dead'}`;
-      card.innerHTML = html;
+      // Only touch the DOM when content changes so explorer links stay clickable.
+      if (card._html !== html) {
+        card.innerHTML = html;
+        card._html = html;
+      }
     }
 
     // Remove cards for agents that left
@@ -557,26 +641,24 @@ class WorldScene extends Phaser.Scene {
 
   _showTooltip(p, screenX, screenY) {
     if (!this._tooltip) return;
-    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress } = p;
+    const { agentId, hp, maxHp, energy, maxEnergy, gold, zone, alive, inventory = [], walletAddress, nearReady } = p;
 
     const hpPct  = Math.round(hp  / maxHp  * 100);
     const enPct  = Math.round(energy / maxEnergy * 100);
     const invHtml = inventory.length
-      ? inventory.map(i => `<span class="inv-item">${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
+      ? inventory.map(i => `<span class="inv-item">${esc(i.name)}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>`).join('')
       : '<span class="inv-empty">empty</span>';
 
     const goldStr = gold ?? '0.00';
-    const shortAddr = walletAddress
-      ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-      : null;
-    const explorerHref = walletAddress
-      ? `https://explorer.sepolia.mantle.xyz/address/${walletAddress}`
-      : null;
+    // NEAR named accounts are human-readable — show them in full.
+    const acctHtml = walletAddress && nearReady
+      ? `<div class="tt-acct"><span class="tt-acct-dot"></span>${esc(walletAddress)}</div>`
+      : `<div class="tt-acct pending"><span class="tt-acct-dot"></span>creating account…</div>`;
 
     this._tooltip.innerHTML = `
-      <div class="tt-name">${agentId}${alive ? '' : ' 💀'}</div>
-      ${shortAddr ? `<div class="tt-ens"><span class="tt-ens-dot"></span>${shortAddr}${explorerHref ? `<a class="tt-ens-link" href="${explorerHref}" target="_blank" rel="noopener" title="View on Mantle explorer">↗</a>` : ''}</div>` : ''}
-      <div class="tt-zone">${zone}</div>
+      <div class="tt-name">${esc(agentId)}${alive ? '' : ' 💀'}</div>
+      ${acctHtml}
+      <div class="tt-zone">${esc(zone)}</div>
       <div class="tt-row"><span class="tt-label">HP</span>
         <div class="tt-bar"><div class="tt-fill hp" style="width:${hpPct}%"></div></div>
         <span class="tt-val">${hp}/${maxHp}</span>
@@ -590,7 +672,7 @@ class WorldScene extends Phaser.Scene {
     `;
 
     const margin = 12;
-    const tw = 200, th = 160;
+    const tw = 240, th = 170;
     const lx = screenX + margin + tw > window.innerWidth  ? screenX - tw - margin : screenX + margin;
     const ly = screenY + margin + th > window.innerHeight ? screenY - th - margin : screenY + margin;
     this._tooltip.style.left    = lx + 'px';
