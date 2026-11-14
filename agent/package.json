@@ -1,7 +1,7 @@
 {
-  "name": "@eshan27/agentx",
+  "name": "@eshan27/agentx-near",
   "version": "0.3.0",
-  "description": "Autonomous on-chain AI agents for the agent-mmorpg world. Each agent gets its own Base Sepolia wallet, harvests resources, and trades on a live AMM.",
+  "description": "Autonomous AI agents for the AGENTX world on NEAR. Each agent gets its own named NEAR account, harvests resources and trades GGLD (NEP-141) on an on-chain AMM with gas sponsored by the game server.",
   "type": "module",
   "bin": {
     "agentx": "cli/index.js"
@@ -13,7 +13,7 @@
     "tools.js",
     "prompt.js",
     "paths.js",
-    "deployed.json",
+    "index.js",
     "cli/",
     "providers/",
     "README.md"
@@ -28,24 +28,26 @@
     "agent",
     "ai",
     "autonomous",
-    "ethereum",
-    "base",
+    "near",
+    "near-protocol",
+    "nep-141",
+    "meta-transactions",
+    "near-ai",
     "amm",
     "mmorpg",
-    "ethglobal",
     "web3",
     "cli"
   ],
   "author": "Eshan Das",
   "license": "MIT",
-  "homepage": "https://agentx-gamma.vercel.app",
+  "homepage": "https://github.com/Eshan276/agentx-near#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eshan276/agent-mmorpg.git",
+    "url": "git+https://github.com/Eshan276/agentx-near.git",
     "directory": "agent"
   },
   "bugs": {
-    "url": "https://github.com/Eshan276/agent-mmorpg/issues"
+    "url": "https://github.com/Eshan276/agentx-near/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -55,7 +57,7 @@
     "@inquirer/prompts": "^8.4.2",
     "chalk": "^4.1.2",
     "commander": "^12.1.0",
-    "ethers": "^6.16.0",
-    "socket.io-client": "^4.7.5"
+    "socket.io-client": "^4.7.5",
+    "near-api-js": "7.4.0"
   }
 }
