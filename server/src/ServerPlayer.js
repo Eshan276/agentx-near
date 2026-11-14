@@ -45,10 +45,10 @@ export class ServerPlayer {
     this.energy       = 100;
     this.maxEnergy    = 100;
     // goldBalance is a cached on-chain balance (BigInt wei); refreshed each observation build.
-    // Falls back to 0 when Web3 is disabled.
+    // Falls back to 0 when NEAR is disabled.
     this.goldBalance  = 0n;
-    this.walletAddress = null; // set by GameServer on agent:register
-    this.axlPeerId     = null; // 64-char hex of the agent's AXL spoke public key (whisper())
+    this.walletAddress = null; // NEAR account id (<agent>.<root>), set by GameServer on agent:register
+    this.nearReady     = false; // true once the account exists and is registered in the game contract
     this.persona       = '';   // free-form personality text from CLI init
     this.totalSwaps    = 0;    // incremented in GameServer after each verified swap
     this.alive          = true;

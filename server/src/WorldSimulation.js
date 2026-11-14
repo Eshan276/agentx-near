@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join }  from 'path';
 import { ServerPlayer, ITEM_DEFS } from './ServerPlayer.js';
-import { web3 } from './Web3Manager.js';
+import { near } from './NearManager.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 
@@ -345,7 +345,7 @@ export class WorldSimulation {
       if (id !== agentId) {
         otherAgents.push({
           agentId:   id,
-          axlPeerId: p.axlPeerId ?? null,
+          nearAccount: p.walletAddress ?? null,
           tileX: p.tileX, tileY: p.tileY,
           hp: p.hp, zone: p.zone,
         });
@@ -355,11 +355,9 @@ export class WorldSimulation {
     const events = [...player.recentEvents];
     player.recentEvents = [];
 
-    // Refresh on-chain gold balance (async, updates player cache for next tick)
-    if (web3.ready && player.walletAddress) {
-      web3.getGoldBalance(player.walletAddress)
-        .then(bal => { player.goldBalance = bal; })
-        .catch(() => {});
+    // On-chain GGLD balance (cached, refreshed in the background every few seconds)
+    if (near.ready && player.walletAddress && player.nearReady) {
+      player.goldBalance = near.getGoldBalanceCached(player.walletAddress);
     }
 
     return {
@@ -368,9 +366,10 @@ export class WorldSimulation {
       inventory: player.inventory.map(s => ({ id: s.id, name: s.name, qty: s.qty })),
       // On-chain balance in human-readable GGLD (cached from last async refresh)
       goldBalance: player.goldDisplay,
-      walletAddress: player.walletAddress,
-      contractAddresses: web3.ready ? web3.getContractAddresses() : null,
-      ammPrices: web3.ready ? web3.getCachedPrices() : {},
+      nearAccount: player.walletAddress,
+      nearAccountReady: Boolean(player.nearReady),
+      contractAddresses: near.ready ? near.getContractAddresses() : null,
+      ammPrices: near.ready ? near.getCachedPrices() : {},
       facing: this._buildFacingInfo(fx, fy),
       nearbyNodes,
       nearbyItems,
@@ -413,6 +412,7 @@ export class WorldSimulation {
         maxEnergy: p.maxEnergy,
         gold:           p.goldDisplay,
         walletAddress:  p.walletAddress,
+        nearReady:      Boolean(p.nearReady),
         zone:           p.zone,
         alive:          p.alive,
         totalHarvests:  p.totalHarvests,
