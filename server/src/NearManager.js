@@ -250,6 +250,21 @@ class NearManager {
     return BigInt(await this.view('ft_balance_of', { account_id: accountId }).catch(() => '0'));
   }
 
+  /** Sell quote (GGLD base units, string) from the cached reserves: same x·y=k + 0.3% fee as the contract. */
+  quoteSellLocal(resourceId, units) {
+    const pool = this._pools?.[resourceId];
+    if (!pool) return '0';
+    const inWithFee = BigInt(units) * 997n;
+    return ((inWithFee * BigInt(pool.reserve_gold)) / (BigInt(pool.reserve_resource) * 1000n + inWithFee)).toString();
+  }
+
+  /** Contract quote when the RPC answers quickly, otherwise the local one (the agent applies 2% slippage). */
+  async quoteSell(resourceId, units) {
+    const timeout = new Promise((r) => setTimeout(() => r(null), 4000));
+    const live = await Promise.race([this.view('preview_sell', { resource_id: resourceId, units: String(units) }).catch(() => null), timeout]);
+    return live ?? this.quoteSellLocal(resourceId, units);
+  }
+
   _applyPrice(id, p) {
     this._priceCache[id] = p;
     const arr = (this._priceHistory[id] ??= []);
@@ -260,6 +275,7 @@ class NearManager {
   async _refreshPrices() {
     try {
       const pools = await this.view('get_pools');
+      this._pools = Object.fromEntries(pools.map((p) => [p.resource_id, p]));
       for (const pool of pools) this._applyPrice(pool.resource_id, Number(BigInt(pool.price) * 10000n / GOLD) / 10000);
     } catch { /* keep the previous cache */ }
   }

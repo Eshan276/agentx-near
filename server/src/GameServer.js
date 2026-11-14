@@ -101,7 +101,7 @@ export class GameServer {
       const have = player.countItem(resourceId);
       if (have < n) return ack({ ok: false, error: `You only have ${have} ${resourceId}` });
       try {
-        const quote = await near.view('preview_sell', { resource_id: resourceId, units: String(n) });
+        const quote = await near.quoteSell(resourceId, n);
         if (quote === '0') return ack({ ok: false, error: `No AMM pool for ${resourceId}` });
         ack({ ok: true, voucher: near.signSellVoucher(player.walletAddress, resourceId, n), quote });
       } catch (e) {
