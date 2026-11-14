@@ -1,134 +1,99 @@
-import { useState } from 'react';
+// Top navigation. Full-width and transparent at the top of the page; once you scroll it turns into
+// a floating rounded bar (like the reference). Mobile: a disclosure menu.
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Github } from 'lucide-react';
-import { NAV_LINKS, REPO_URL } from '../site';
+import { REPO_URL, WORLD_URL } from '../site';
+import { Wordmark } from './landing/ui';
 
-const pillBase = 'rounded-full font-medium transition-colors';
+const LINKS = [
+  { label: 'How it works', href: '/#how-it-works' },
+  { label: 'Economy',      href: '/#economy' },
+  { label: 'Developers',   href: '/#developers' },
+  { label: 'Docs',         href: '/docs' },
+  { label: 'Deck',         href: '/deck' },
+];
 
-export default function Nav({ animated = false }: { animated?: boolean }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function Nav(_props: { animated?: boolean } = {}) {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const animClass = (_delay: number) =>
-    animated ? 'animate-blur-fade-up' : '';
-  const animStyle = (delay: number) =>
-    animated ? { animationDelay: `${delay}ms` } : undefined;
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 24);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   return (
-    <>
-      <nav className="relative z-50 flex items-center justify-between px-4 sm:px-6 md:px-12 py-4 md:py-6">
-        <Link
-          to="/"
-          className={`text-xl md:text-2xl font-semibold tracking-[0.2em] ${animClass(0)}`}
-          style={animStyle(0)}
-        >
-          AGENTX
+    <header className="fixed inset-x-0 top-0 z-50 px-3 md:px-6 pt-3 md:pt-4 pointer-events-none">
+      <nav
+        aria-label="Main"
+        className={`pointer-events-auto mx-auto flex items-center justify-between transition-all duration-500 ease-out
+          ${scrolled
+            ? 'max-w-[1200px] h-14 rounded-2xl border border-line bg-paper/85 backdrop-blur-md shadow-[0_8px_30px_-12px_rgba(11,10,9,.25)] px-5 md:px-8'
+            : 'max-w-page h-16 border border-transparent px-3 md:px-[40px]'}`}
+      >
+        <Link to="/" className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink" aria-label="AGENTX home">
+          <Wordmark />
         </Link>
 
-        <div className="hidden lg:flex items-center gap-8">
-          {NAV_LINKS.map((link, i) => (
-            <NavLink
-              key={link.label}
-              link={link}
-              className={`text-sm hover:text-gray-300 transition-colors ${animClass(100 + i * 50)}`}
-              style={animStyle(100 + i * 50)}
-            />
+        <ul className="hidden md:flex items-center gap-10 text-[14px] text-ink-2">
+          {LINKS.map((l) => (
+            <li key={l.label}>
+              <a href={l.href} className="rounded transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+                {l.label}
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`hidden sm:inline-flex liquid-glass ${pillBase} items-center gap-2 px-4 md:px-6 py-2 text-sm ${animClass(350)}`}
-            style={animStyle(350)}
-          >
-            <Github size={16} />
-            <span>GitHub</span>
+        <div className="hidden md:flex items-center gap-5">
+          <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-[14px] text-ink-2 hover:text-ink rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+            GitHub
           </a>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen(o => !o)}
-            className={`lg:hidden liquid-glass w-10 h-10 rounded-full flex items-center justify-center ${animClass(350)} relative`}
-            style={animStyle(350)}
-            aria-label="Toggle menu"
-          >
-            <span
-              className="absolute inset-0 flex items-center justify-center transition-all duration-500 ease-out"
-              style={{ opacity: menuOpen ? 0 : 1, transform: menuOpen ? 'rotate(180deg) scale(0.5)' : 'rotate(0) scale(1)' }}
-            >
-              <Menu size={18} />
-            </span>
-            <span
-              className="absolute inset-0 flex items-center justify-center transition-all duration-500 ease-out"
-              style={{ opacity: menuOpen ? 1 : 0, transform: menuOpen ? 'rotate(0) scale(1)' : 'rotate(-180deg) scale(0.5)' }}
-            >
-              <X size={18} />
-            </span>
-          </button>
+          <a href={WORLD_URL} target="_blank" rel="noreferrer" className="btn-ink h-9 px-4 text-[14px]">
+            Watch the world
+          </a>
         </div>
+
+        <button
+          type="button"
+          className="md:hidden h-10 w-10 grid place-items-center rounded-full border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+          aria-expanded={open}
+          aria-controls="mobile-menu"
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden>
+            {open
+              ? <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              : <path d="M3 7h14M3 13h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
+          </svg>
+        </button>
       </nav>
 
-      {/* Mobile menu */}
-      <div
-        className={`lg:hidden absolute left-0 right-0 top-[72px] z-40 bg-gray-900/95 backdrop-blur-lg border-t border-b border-gray-800 shadow-2xl transition-all duration-500 ease-out
-          ${menuOpen ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0 pointer-events-none'}`}
-      >
-        <div className="px-4 py-4 flex flex-col">
-          {NAV_LINKS.map((link, i) => (
-            <NavLink
-              key={link.label}
-              link={link}
-              onClick={() => setMenuOpen(false)}
-              className="py-3 px-3 rounded-lg hover:bg-gray-800/50 transition-all duration-500 ease-out text-sm"
-              style={{
-                transform: menuOpen ? 'translateX(0)' : 'translateX(-12px)',
-                opacity:   menuOpen ? 1 : 0,
-                transitionDelay: `${i * 50}ms`,
-              }}
-            />
-          ))}
+      {open && (
+        <div id="mobile-menu" className="pointer-events-auto md:hidden mx-auto mt-2 max-w-page rounded-2xl border border-line bg-paper p-4 shadow-lg">
+          <ul className="flex flex-col">
+            {[...LINKS, { label: 'GitHub', href: REPO_URL }].map((l) => (
+              <li key={l.label}>
+                <a href={l.href} onClick={() => setOpen(false)} className="block rounded px-2 py-3 text-[16px] border-b border-line last:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a href={WORLD_URL} target="_blank" rel="noreferrer" className="btn-ink mt-3 w-full justify-center">Watch the world</a>
         </div>
-      </div>
-    </>
-  );
-}
-
-// Renders an internal Link or external <a> as appropriate
-function NavLink({
-  link, className, style, onClick,
-}: {
-  link: { label: string; href: string; external?: boolean };
-  className?: string;
-  style?: React.CSSProperties;
-  onClick?: () => void;
-}) {
-  if (link.external) {
-    return (
-      <a
-        href={link.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-        style={style}
-        onClick={onClick}
-      >
-        {link.label}
-      </a>
-    );
-  }
-  // Anchor links (with #) on the landing should use a normal anchor so the browser handles scroll
-  if (link.href.includes('#')) {
-    return (
-      <a href={link.href} className={className} style={style} onClick={onClick}>
-        {link.label}
-      </a>
-    );
-  }
-  return (
-    <Link to={link.href} className={className} style={style} onClick={onClick}>
-      {link.label}
-    </Link>
+      )}
+    </header>
   );
 }
