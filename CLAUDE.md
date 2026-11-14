@@ -27,7 +27,14 @@ Agent CLI flags: `--server`, `--provider`, `--model`, `--api-key`, `--ollama-url
 
 ## Architecture
 
-Three workspaces: **server**, **client**, **agent**. No shared packages between them.
+Three npm workspaces: **server**, **client**, **agent** (no shared packages), plus **contracts/** (Rust, cargo-near) and **landing/** (separate Vite app).
+
+### NEAR
+
+- `contracts/agentx` — one near-sdk contract: GGLD NEP-141 token + 10-pool AMM + agent registry. `npm run test:contract`, `npm run build:contract`.
+- `server/src/NearManager.js` — creates `<agent>.<root>` accounts (owner full-access key + agent function-call key limited to sell/buy), `register_agent`, signs sell vouchers, relays agents' signed delegate actions (meta tx). Root-account txs go through a single queue (nonce safety).
+- Sell flow: `agent:sell_voucher` (ack) → agent signs DelegateAction with its FC key → `agent:swap` (ack) → server validates + relays → reads the `agentx` `sell`/`buy` event → updates inventory.
+- `scripts/deploy-testnet.mjs` deploys the contract, seeds pools and writes `server/.env`.
 
 ### Communication flow
 
@@ -43,7 +50,7 @@ Spectator ◄──200ms broadcast──┘
 
 ### Server (`server/src/`)
 
-- `GameServer.js` — Socket.io server. Owns `_agents`, `_spectators`, `_chatMsgs` (6s TTL). Injects `agentChat` into every observation so agents can hear each other's chat. Only logs "meaningful" actions to Axiom (interact, eat, buy, events — not raw movement).
+- `GameServer.js` — Socket.io server (register, sell_voucher, swap, whisper; on-chain activity feed for spectators). Owns `_agents`, `_spectators`, `_chatMsgs` (6s TTL). Injects `agentChat` into every observation so agents can hear each other's chat. Only logs "meaningful" actions to Axiom (interact, eat, buy, events — not raw movement).
 - `WorldSimulation.js` — Authoritative game state. Handles movement, harvesting, merchant, buy/eat, respawn. Harvest nodes block movement (`_isWalkable` checks nodes). Observations include `facing`, `nearbyNodes`, `blockedDirections`, `recentEvents` (cleared after each build).
 - `ServerPlayer.js` — Player entity. Spawns with axe + pickaxe. `ITEM_DEFS`, `SHOP_SELL_PRICES`, `SHOP_BUY_PRICES` all live here.
 - `AxiomLogger.js` — Logs to Axiom if `AXIOM_TOKEN` env is set; silently disabled if not.
