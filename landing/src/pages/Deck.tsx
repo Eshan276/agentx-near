@@ -2,13 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Maximize2,
-  Wallet, Pickaxe, ArrowLeftRight, Database, Network,
-  CheckCircle2, ExternalLink, Terminal, Zap, Coins, Bot, Github,
+  AtSign, Pickaxe, ArrowLeftRight, Network, KeyRound, Fuel, Coins, ShieldCheck, Timer,
+  CheckCircle2, ExternalLink, Terminal, Zap,
 } from 'lucide-react';
 import {
-  VM_URL, REPO_URL, NPM_URL, NPM_PKG,
-  AMM_ADDR, GOLD_ADDR, MANTLE_SCAN,
+  NPM_PKG, CONTRACT_ID, CONTRACT_URL, ROOT_ACCOUNT, ROOT_URL, EXAMPLE_AGENT,
 } from '../site';
+
+const REPO_SHORT = 'github.com/Eshan276/agentx-near';
 
 const SLIDES: SlideDef[] = [
   // ── 1. Title ──────────────────────────────────────────────────────────────
@@ -17,8 +18,8 @@ const SLIDES: SlideDef[] = [
     layout: 'hero',
     kicker: 'AGENTX',
     title: 'Autonomous AI agents.\nReal on-chain economy.',
-    subtitle: 'Every character in our MMORPG is an AI agent with its own wallet, running a real on-chain economy on Mantle.',
-    cta: { primary: 'agentx-gamma.vercel.app', secondary: 'Mantle Sepolia · 2026' },
+    subtitle: 'Every character in our MMORPG is an AI agent with its own named NEAR account, trading in an economy that settles on NEAR.',
+    cta: { primary: REPO_SHORT, secondary: 'NEAR testnet · 2026' },
   },
 
   // ── 2. The problem ────────────────────────────────────────────────────────
@@ -26,22 +27,21 @@ const SLIDES: SlideDef[] = [
     id: 'problem',
     layout: 'split',
     kicker: '01 · The problem',
-    title: 'AI agents today are ephemeral.',
+    title: 'Giving an AI a wallet is scary.',
     body: [
-      'Kill the process — the agent is gone.',
-      'No persistent identity.',
-      'No portable memory.',
-      'No reputation any other app can read.',
+      'Agents today either have no on-chain identity at all, or they hold a raw private key.',
+      'A raw key means one bad prompt can drain everything.',
+      'They also need gas tokens just to act, and they show up as hex addresses nobody can read.',
       '',
-      'The agent lives inside the platform that runs it. That platform owns it.',
+      'So most "on-chain agents" end up as a server wallet with an LLM bolted on.',
     ],
     rightCard: {
-      title: 'What\'s missing',
+      title: 'What an agent actually needs',
       points: [
-        'A name other apps can resolve',
-        'Memory that outlives the process',
-        'A reputation any dApp can verify',
-        'A wallet only the agent controls',
+        'A name people and apps can read',
+        'Keys the model can use, but not abuse',
+        'The ability to act without holding gas',
+        'A real token it can earn and spend',
       ],
     },
   },
@@ -51,13 +51,13 @@ const SLIDES: SlideDef[] = [
     id: 'solution',
     layout: 'center',
     kicker: '02 · The solution',
-    title: 'Make agents first-class on-chain entities.',
-    subtitle: 'Each AGENTX agent gets a wallet, native MNT for gas, and a fully on-chain economy on Mantle — at spawn, in one command.',
+    title: 'Make agents first-class NEAR accounts.',
+    subtitle: `Each AGENTX agent becomes a named account like ${EXAMPLE_AGENT} the moment it joins. The LLM gets a key scoped to the market, the owner keeps the master key, and the game pays the gas.`,
     chips: [
-      { icon: 'wallet', label: 'Own wallet (ethers v6 keyfile)' },
-      { icon: 'chain',  label: 'Trades on Mantle Sepolia' },
-      { icon: 'bolt',   label: 'Constant-product AMM, 0.3% fee' },
-      { icon: 'bolt',   label: 'Auto gas drip on register' },
+      { icon: 'at',    label: 'Named NEAR account' },
+      { icon: 'key',   label: 'Function-call key for the LLM' },
+      { icon: 'fuel',  label: 'Gasless meta transactions' },
+      { icon: 'chain', label: 'NEP-141 GGLD + 10-pool AMM' },
     ],
   },
 
@@ -68,13 +68,13 @@ const SLIDES: SlideDef[] = [
     kicker: '03 · How it works',
     title: 'One agent. Three loops.',
     cards: [
-      { icon: <Wallet size={28} />,           step: '01', title: 'Bring your wallet',     body: 'Encrypted keyfile created on agent init. Only the operator has the key. Wallet is funded with 100 GGLD + 0.005 MNT by the server on register.' },
-      { icon: <Pickaxe size={28} />,          step: '02', title: 'Harvest in the world',  body: '80×80 tile MMORPG. Chop trees, mine rocks, dodge mobs. Inventory is server-authoritative. Position broadcast every 200ms.' },
-      { icon: <ArrowLeftRight size={28} />,   step: '03', title: 'Trade on-chain',        body: 'swap() against our constant-product AMM. Sell resources for GGLD, buy food back. Prices move with supply. Every tx is real, signed by the agent\'s own key.' },
+      { icon: <AtSign size={28} />,         step: '01', title: 'Get a name',           body: `On first join the server creates ${EXAMPLE_AGENT}, adds the owner and agent keys, and registers it with 100 GGLD.` },
+      { icon: <Pickaxe size={28} />,        step: '02', title: 'Harvest in the world', body: '2D tile MMORPG. Chop trees, mine rocks, fish, dodge mobs. The server owns inventory and signs a voucher for whatever was really harvested.' },
+      { icon: <ArrowLeftRight size={28} />, step: '03', title: 'Trade on-chain',       body: 'Sell the harvest for GGLD, buy food back. The agent signs a delegate action and the server relays it. Prices move with supply.' },
     ],
   },
 
-  // ── 5. Demo — live screenshot ─────────────────────────────────────────────
+  // ── 5. Demo ───────────────────────────────────────────────────────────────
   {
     id: 'demo',
     layout: 'demo',
@@ -82,41 +82,61 @@ const SLIDES: SlideDef[] = [
     title: 'Spawn an agent in one command.',
     command: `npx -y ${NPM_PKG} init`,
     bullets: [
-      'CLI walks you through wallet, persona, and LLM provider.',
-      'Server mints 100 GGLD + drips 0.005 MNT for gas to the new wallet.',
-      'Agent connects to the live game world on Mantle Sepolia.',
-      'Agent boots, picks a goal, starts harvesting + swapping.',
-      'Every swap is a real signed tx on Mantle, verifiable on the explorer.',
+      'CLI asks for a name, persona and LLM provider.',
+      'Owner and agent keys are generated on your laptop.',
+      'Server creates the NEAR account and grants 100 GGLD.',
+      'Agent boots, picks a goal, starts harvesting and trading.',
+      'Every trade is a NEAR transaction you can look up on NearBlocks.',
     ],
   },
 
-  // ── 6. Mantle Sepolia — the economy ───────────────────────────────────────
+  // ── 6. Why NEAR ───────────────────────────────────────────────────────────
   {
-    id: 'mantle-economy',
+    id: 'why-near',
+    layout: 'grid',
+    kicker: '05 · Why NEAR',
+    title: 'Agent-native, out of the box.',
+    cards: [
+      { icon: <AtSign size={22} />,      step: 'Named accounts',   title: 'Identity is the account', body: `${EXAMPLE_AGENT} is a real account, readable by people and resolvable by any app. No naming service needed.` },
+      { icon: <KeyRound size={22} />,    step: 'Access keys',      title: 'A key the LLM can\'t abuse', body: 'A function-call key can only call sell and buy on the game contract. The full-access key stays with the human.' },
+      { icon: <Fuel size={22} />,        step: 'NEP-366',          title: 'Gasless meta-tx',         body: 'Agents sign delegate actions. The game relays them and pays gas. Agents never hold NEAR.' },
+      { icon: <Coins size={22} />,       step: 'NEP-141',          title: 'A standard token',        body: 'GGLD is a plain fungible token. Owners can ft_transfer it anywhere on NEAR.' },
+      { icon: <Timer size={22} />,       step: 'Finality + fees',  title: 'Fast and cheap',          body: 'Quick finality and low fees mean trades land within a game loop, so the whole economy can live on-chain.' },
+      { icon: <ShieldCheck size={22} />, step: 'ed25519_verify',   title: 'Vouchers checked on-chain', body: 'The contract verifies the server\'s harvest signature natively. No oracle, no extra contracts.' },
+    ],
+  },
+
+  // ── 7. The economy ────────────────────────────────────────────────────────
+  {
+    id: 'economy',
     layout: 'split',
-    kicker: '05 · Mantle Sepolia',
-    title: 'Every trade is a real on-chain swap.',
+    kicker: '06 · The economy',
+    title: 'One contract. No free gold.',
     body: [
-      'GoldToken (GGLD ERC-20) and a 10-pool GameAMM are deployed on Mantle Sepolia.',
-      'When an agent calls swap(), it signs the tx with its own private key and submits to the AMM directly.',
+      'A single Rust (near-sdk) contract is the GGLD NEP-141 token, a 10-pool constant-product AMM with a 0.3% fee, and the agent registry.',
       '',
-      'Server verifies the receipt, updates server-side inventory, mints GGLD via the AMM.',
+      'Selling needs a harvest voucher: an ed25519 signature from the game server over account, resource, amount, nonce and expiry. Nonces stop replays.',
       '',
-      'Real txs. Real GGLD. Real prices that move with supply.',
+      'Pool GGLD is held by the contract. A sale pays out existing reserves and never mints.',
     ],
     rightCard: {
-      title: 'GameAMM (constant product, 0.3% fee)',
+      title: 'contracts/agentx (near-sdk)',
       monospace: true,
       points: [
-        'function sell(',
-        '  bytes32 id,',
-        '  uint256 resourceUnits,',
-        '  uint256 minGoldOut)',
-        '  returns (uint256)',
+        'pub fn sell(&mut self,',
+        '  resource_id: String,',
+        '  units: U128,',
+        '  min_gold_out: U128,',
+        '  voucher: Voucher) -> U128',
         '',
-        '// 10 pools keyed by bytes32',
-        '// virtual reserves on resource side',
-        '// only GGLD is a real ERC-20',
+        'pub fn buy(&mut self,',
+        '  resource_id: String,',
+        '  units: U128,',
+        '  max_gold_in: U128) -> U128',
+        '',
+        '// require!(env::ed25519_verify(..))',
+        '// pools: plank, branch, rock, bar_iron,',
+        '//   gem_red, gem_green, grass, honey, meat, fish',
       ],
     },
   },
@@ -134,25 +154,25 @@ const SLIDES: SlideDef[] = [
     id: 'proof',
     layout: 'proof',
     kicker: '08 · Verifiable',
-    title: 'All contracts live on Mantle Sepolia.',
+    title: 'Everything lives on NEAR testnet.',
     contracts: [
-      { label: 'GameAMM (10 pools)',      addr: AMM_ADDR,  chain: 'Mantle Sepolia (5003)', explorer: MANTLE_SCAN },
-      { label: 'GoldToken (GGLD ERC-20)', addr: GOLD_ADDR, chain: 'Mantle Sepolia (5003)', explorer: MANTLE_SCAN },
+      { label: 'Game contract (GGLD + AMM + registry)', id: CONTRACT_ID,  chain: 'NEAR testnet', href: CONTRACT_URL },
+      { label: 'Agent root account (parent of every agent)', id: ROOT_ACCOUNT, chain: 'NEAR testnet', href: ROOT_URL },
     ],
   },
 
-  // ── 10. Powered by ────────────────────────────────────────────────────────
+  // ── 10. Built with ────────────────────────────────────────────────────────
   {
     id: 'stack',
     layout: 'stack',
-    kicker: '09 · Powered by',
-    title: 'Real protocols, all live.',
+    kicker: '09 · Built with',
+    title: 'Real protocols, end to end.',
     sponsors: [
-      { name: 'Mantle',     tag: 'L2 settlement + AMM economy', done: true },
-      { name: 'Solidity',   tag: 'GoldToken + 10-pool AMM',     done: true },
-      { name: 'ethers.js',  tag: 'Agents sign their own txs',   done: true },
-      { name: 'Phaser 3',   tag: 'Spectator world UI',          done: true },
-      { name: 'Gensyn AXL', tag: 'P2P agent whispers',          done: true },
+      { name: 'NEAR',         tag: 'Accounts, keys, meta-tx',   done: true },
+      { name: 'near-sdk',     tag: 'GGLD + AMM + registry',     done: true },
+      { name: 'near-api-js',  tag: 'Relayer + agent signing',   done: true },
+      { name: 'NEAR AI Cloud', tag: 'Private LLM inference',    done: true },
+      { name: 'Phaser 3',     tag: 'Spectator world UI',        done: true },
     ],
   },
 
@@ -162,12 +182,12 @@ const SLIDES: SlideDef[] = [
     layout: 'center',
     kicker: '10 · Why now',
     title: 'AI agents are about to multiply.',
-    subtitle: 'They need real wallets, real economies, and real chains to live on. AGENTX puts every agent on Mantle with its own wallet — autonomous, verifiable, end-to-end.',
+    subtitle: 'They need identities people can read, keys with limits, and an economy that does not charge them gas just to act. AGENTX shows what that looks like on NEAR.',
     chips: [
-      { icon: 'bolt', label: '1 command to spawn'              },
-      { icon: 'bolt', label: 'Real txs on Mantle Sepolia'      },
-      { icon: 'bolt', label: 'Open source, MIT'                },
-      { icon: 'bolt', label: 'Live now at agentx-gamma.vercel.app' },
+      { icon: 'bolt', label: '1 command to spawn' },
+      { icon: 'bolt', label: 'Gasless for agents' },
+      { icon: 'bolt', label: 'Scoped LLM keys' },
+      { icon: 'bolt', label: 'Open source, MIT' },
     ],
   },
 
@@ -176,11 +196,11 @@ const SLIDES: SlideDef[] = [
     id: 'cta',
     layout: 'hero',
     kicker: 'Try it',
-    title: 'npx -y @eshan27/agentx init',
-    subtitle: 'Spawn your own autonomous on-chain agent in 30 seconds.',
+    title: `npx -y ${NPM_PKG} init`,
+    subtitle: 'Spawn your own named, gasless, on-chain agent.',
     cta: {
-      primary:   'agentx-gamma.vercel.app',
-      secondary: 'github.com/Eshan276/agent-mmorpg',
+      primary:   REPO_SHORT,
+      secondary: 'NEAR testnet',
     },
   },
 ];
@@ -285,6 +305,7 @@ function Slide({ slide }: { slide: SlideDef }) {
     case 'arch':      return <ArchSlide      slide={slide} />;
     case 'proof':     return <ProofSlide     slide={slide} />;
     case 'stack':     return <StackSlide     slide={slide} />;
+    case 'grid':      return <GridSlide      slide={slide} />;
     default:          return null;
   }
 }
@@ -389,9 +410,9 @@ function CenterSlide({ slide }: { slide: SlideDef }) {
 }
 
 function ChipIcon({ name }: { name?: string }) {
-  if (name === 'wallet') return <Wallet size={16} className="text-white/70" />;
-  if (name === 'ens')    return <span className="text-purple-300 font-bold">⌬</span>;
-  if (name === '0g')     return <Database size={16} className="text-green-400" />;
+  if (name === 'at')     return <AtSign size={16} className="text-white/70" />;
+  if (name === 'key')    return <KeyRound size={16} className="text-purple-300" />;
+  if (name === 'fuel')   return <Fuel size={16} className="text-green-400" />;
   if (name === 'chain')  return <Network size={16} className="text-blue-300" />;
   if (name === 'bolt')   return <Zap size={14} className="text-amber-300" />;
   return null;
@@ -411,6 +432,27 @@ function ThreeUpSlide({ slide }: { slide: SlideDef }) {
             </div>
             <h3 className="text-xl md:text-2xl font-medium mb-3">{c.title}</h3>
             <p className="text-sm md:text-base text-gray-400 leading-relaxed">{c.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GridSlide({ slide }: { slide: SlideDef }) {
+  return (
+    <div className="w-full max-w-7xl">
+      <Kicker>{slide.kicker}</Kicker>
+      <Title>{slide.title}</Title>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10">
+        {slide.cards!.map((c, i) => (
+          <div key={i} className="liquid-glass rounded-2xl p-5 md:p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-white/80">{c.icon}</div>
+              <span className="text-[10px] text-white/40 uppercase tracking-[0.2em]">{c.step}</span>
+            </div>
+            <h3 className="text-lg md:text-xl font-medium mb-2">{c.title}</h3>
+            <p className="text-sm text-gray-400 leading-relaxed">{c.body}</p>
           </div>
         ))}
       </div>
@@ -447,31 +489,36 @@ function ArchSlide({ slide }: { slide: SlideDef }) {
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
       <div className="mt-10 liquid-glass rounded-2xl p-6 md:p-10">
-        <pre className="font-mono text-xs md:text-sm text-white/85 leading-relaxed whitespace-pre overflow-x-auto">{`┌──────────────────────────────────────────────┐
-│ AGENT PROCESS (operator's laptop)            │
-│  agentx CLI → AgentLoop                      │
-│    │                                         │
-│    ├─ encrypted wallet (own private key)     │
-│    ├─ LLM provider (Anthropic/Gemini/etc.)   │
-│    ├─ tool: swap()   ─── signs own tx        │
-│    ├─ tool: whisper() ── over Gensyn AXL     │
-│    └─ tool: say() ────── over Socket.io      │
-└──────────────────────────────────────────────┘
-                       │
-                       ▼ socket.io
-┌──────────────────────────────────────────────┐
-│ AGENTX SERVER (Oracle Cloud, ARM64 docker)   │
-│  GameServer + WorldSimulation                │
-│  Web3Manager   ───► Mantle Sepolia (5003)    │
-│   ├─ mints GGLD ERC-20 on register           │
-│   ├─ verifies every agent swap()             │
-│   └─ drips 0.005 MNT for gas                 │
-│  AxlHub        ───► spokes (one per agent)   │
-│   └─ relays whisper() messages off-chain     │
-└──────────────────────────────────────────────┘
-                       │
-                       ▼  read by anyone
-            Mantle explorer · indexers · dApps
+        <pre className="font-mono text-xs md:text-sm text-white/85 leading-relaxed whitespace-pre overflow-x-auto">{`┌────────────────────────────────────────────────┐
+│ AGENT PROCESS (operator's laptop)              │
+│  agentx CLI → AgentLoop                        │
+│    │                                           │
+│    ├─ owner key (full access, encrypted)       │
+│    ├─ agent key (function-call: sell / buy)    │
+│    ├─ LLM provider (Anthropic / NEAR AI / ...) │
+│    ├─ tool: swap()  ── signs delegate action   │
+│    └─ tool: say() / whisper() ── socket.io     │
+└────────────────────────────────────────────────┘
+                        │
+                        ▼ socket.io
+┌────────────────────────────────────────────────┐
+│ AGENTX SERVER                                  │
+│  GameServer + WorldSimulation                  │
+│  NearManager  ───► NEAR testnet                │
+│   ├─ creates <name>.${ROOT_ACCOUNT}${' '.repeat(Math.max(0, 27 - ROOT_ACCOUNT.length))}│
+│   ├─ signs ed25519 harvest vouchers            │
+│   ├─ relays meta-tx, pays the gas              │
+│   └─ relays private whispers                   │
+└────────────────────────────────────────────────┘
+                        │
+                        ▼ NEP-366 relay
+┌────────────────────────────────────────────────┐
+│ ${CONTRACT_ID}${' '.repeat(Math.max(0, 47 - CONTRACT_ID.length))}│
+│  GGLD (NEP-141) · 10-pool AMM · agent registry │
+└────────────────────────────────────────────────┘
+                        │
+                        ▼  read by anyone
+            NearBlocks · RPC · any NEAR app
 `}</pre>
       </div>
     </div>
@@ -487,7 +534,7 @@ function ProofSlide({ slide }: { slide: SlideDef }) {
         {slide.contracts!.map((c, i) => (
           <a
             key={i}
-            href={`${c.explorer}/${c.addr}`}
+            href={c.href}
             target="_blank"
             rel="noopener noreferrer"
             className="liquid-glass rounded-xl p-5 flex items-center justify-between gap-4 group hover:bg-white/[0.04]"
@@ -497,14 +544,14 @@ function ProofSlide({ slide }: { slide: SlideDef }) {
                 <span className="text-sm md:text-base font-medium">{c.label}</span>
                 <span className="text-[10px] text-white/40 uppercase tracking-wider">{c.chain}</span>
               </div>
-              <code className="font-mono text-xs md:text-sm text-white/60 break-all">{c.addr}</code>
+              <code className="font-mono text-xs md:text-sm text-white/60 break-all">{c.id}</code>
             </div>
             <ExternalLink size={16} className="text-white/30 group-hover:text-white/70 flex-shrink-0" />
           </a>
         ))}
       </div>
       <p className="mt-6 text-sm text-white/50">
-        Click any contract → opens the Mantle Sepolia explorer. All deployed by <code className="font-mono text-amber-200/80">0x0Aee…f292</code>.
+        Click either one to open NearBlocks. Every agent is a sub-account of <code className="font-mono text-amber-200/80">{ROOT_ACCOUNT}</code>, so all of them can be found from there.
       </p>
     </div>
   );
@@ -536,7 +583,7 @@ function StackSlide({ slide }: { slide: SlideDef }) {
 
 type SlideDef = {
   id:        string;
-  layout:    'hero' | 'split' | 'center' | 'three-up' | 'demo' | 'arch' | 'proof' | 'stack';
+  layout:    'hero' | 'split' | 'center' | 'three-up' | 'demo' | 'arch' | 'proof' | 'stack' | 'grid';
   kicker:    string;
   title:     string;
   subtitle?: string;
@@ -546,11 +593,7 @@ type SlideDef = {
   cards?:    { icon: React.ReactNode; step: string; title: string; body: string }[];
   bullets?:  string[];
   command?:  string;
-  contracts?: { label: string; addr: string; chain: string; explorer: string }[];
+  contracts?: { label: string; id: string; chain: string; href: string }[];
   sponsors?: { name: string; tag: string; done?: boolean }[];
   cta?:      { primary: string; secondary?: string };
 };
-
-// keep unused-import linter quiet for icons we surface dynamically
-void Coins; void Bot; void Github; void MANTLE_SCAN;
-void VM_URL; void REPO_URL; void NPM_URL;

@@ -1,25 +1,38 @@
-// Single source of truth for project URLs and copy.
-export const VM_URL    = 'https://backend.iameshan.tech';
-export const REPO_URL  = 'https://github.com/Eshan276/agent-mmorpg';
-export const NPM_URL   = 'https://www.npmjs.com/package/@eshan27/agentx';
-export const NPM_PKG   = '@eshan27/agentx';
+// Single source of truth for project URLs and on-chain ids.
 
-// Mantle Sepolia (chainId 5003)
-export const GOLD_ADDR    = '0x6D400F5D1DcCaA3e98E3dE17322aA23DE38bAC99';
-export const AMM_ADDR     = '0xb2C7c0F7a4C2877319E8Ed1Fae0bf3C705b6Fc4C';
-export const MANTLE_SCAN  = 'https://explorer.sepolia.mantle.xyz/address';
-export const MANTLE_TX    = 'https://explorer.sepolia.mantle.xyz/tx';
+// TODO(deploy): replace with the public game server URL once it is live.
+export const WORLD_URL = 'http://localhost:3000/world';
 
-// Aliases kept for backwards compat in older imports
-export const BASESCAN     = MANTLE_SCAN;
+export const REPO_URL = 'https://github.com/Eshan276/agentx-near';
+export const NPM_PKG  = '@eshan27/agentx-near';
+export const NPM_URL  = `https://www.npmjs.com/package/${NPM_PKG}`;
+
+// ── NEAR testnet ────────────────────────────────────────────────────────────
+export const NETWORK     = 'testnet';
+export const RPC_URL     = 'https://rpc.testnet.near.org';
+export const EXPLORER    = 'https://testnet.nearblocks.io';
+
+// TODO(deploy): replace after deploy
+export const CONTRACT_ID  = 'game.agentx.testnet';
+// TODO(deploy): replace after deploy
+export const ROOT_ACCOUNT = 'agentx.testnet';
+
+// Example agent account name, derived from the root so it stays in sync.
+export const EXAMPLE_AGENT = `ramu.${ROOT_ACCOUNT}`;
+
+export const explorerAccount = (accountId: string) => `${EXPLORER}/address/${accountId}`;
+export const explorerTx      = (txHash: string)    => `${EXPLORER}/txns/${txHash}`;
+
+export const CONTRACT_URL = explorerAccount(CONTRACT_ID);
+export const ROOT_URL     = explorerAccount(ROOT_ACCOUNT);
 
 export const NAV_LINKS: { label: string; href: string; external?: boolean }[] = [
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Live',         href: '/#live'         },
+  { label: 'Why NEAR',     href: '/#why-near'     },
   { label: 'Stack',        href: '/#stack'        },
-  { label: 'Tracks',       href: '/#tracks'       },
   { label: 'Docs',         href: '/docs'          },
   { label: 'Deck',         href: '/deck'          },
-  { label: 'Spectate',     href: `${VM_URL}/world`, external: true },
-  { label: 'GitHub',       href: REPO_URL,          external: true },
+  { label: 'Spectate',     href: WORLD_URL, external: true },
+  { label: 'GitHub',       href: REPO_URL,  external: true },
 ];
