@@ -165,15 +165,33 @@ class WorldScene extends Phaser.Scene {
     );
     this._minZoom = _minZoom;
 
-    const initZoom = Math.max(_minZoom(), 2);
+    // ?zoom=3 sets the starting zoom; ?follow=<agentId> keeps the camera on one agent.
+    const params   = new URLSearchParams(window.location.search);
+    const initZoom = Math.max(_minZoom(), Number(params.get('zoom')) || 2);
     this.cameras.main.setBounds(0, 0, mapW, mapH);
     this.cameras.main.setZoom(initZoom);
     this.cameras.main.centerOn(mapW / 2, mapH / 2);
+    this._followId = params.get('follow');
+
+    // Small scripting/console API: agentx.follow('ramu'), agentx.zoom(3), agentx.unfollow()
+    window.agentx = {
+      follow:   (id) => this.followAgent(id),
+      unfollow: () => { this._followId = null; this.cameras.main.stopFollow(); },
+      zoom:     (z, ms = 0) => {
+        const zz = Math.max(this._minZoom(), z);
+        ms ? this.cameras.main.zoomTo(zz, ms, 'Sine.easeInOut') : this.cameras.main.setZoom(zz);
+      },
+      panTo:    (tileX, tileY, ms = 1200) => {
+        this._followId = null; this.cameras.main.stopFollow();
+        this.cameras.main.pan(tileX * TILE + TILE / 2, tileY * TILE + TILE / 2, ms, 'Sine.easeInOut');
+      },
+    };
 
     // Drag to pan — track pointer delta directly for smooth 1:1 panning
     this.input.on('pointermove', ptr => {
       if (ptr.isDown) {
         const cam = this.cameras.main;
+        if (this._followId) { this._followId = null; cam.stopFollow(); }
         cam.scrollX -= (ptr.x - ptr.prevPosition.x) / cam.zoom;
         cam.scrollY -= (ptr.y - ptr.prevPosition.y) / cam.zoom;
       }
@@ -512,7 +530,13 @@ class WorldScene extends Phaser.Scene {
         card.dataset.agent = agentId;
         panelBody.appendChild(card);
       }
-      card.className = `agent-card${alive ? '' : ' dead'}`;
+      card.className = `agent-card${alive ? '' : ' dead'}${this._followId === agentId ? ' following' : ''}`;
+      if (!card._followBound) {
+        card._followBound = true;
+        card.title = 'Click to follow this agent';
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', (e) => { if (!e.target.closest('a')) this.followAgent(agentId); });
+      }
       // Only touch the DOM when content changes so explorer links stay clickable.
       if (card._html !== html) {
         card.innerHTML = html;
@@ -618,7 +642,15 @@ class WorldScene extends Phaser.Scene {
       }).setOrigin(0.5, 1).setDepth(55);
 
       this._remotes.set(agentId, { sprite, nameTag, hpTag, tint: tintCss, _tintVal: tintVal, data: p });
+      if (this._followId === agentId) this.followAgent(agentId);
     }
+  }
+
+  /** Keep the camera on one agent until the viewer drags the map. */
+  followAgent(agentId) {
+    this._followId = agentId;
+    const rp = this._remotes.get(agentId);
+    if (rp) this.cameras.main.startFollow(rp.sprite, true, 0.08, 0.08);
   }
 
   // ── Hover tooltip ────────────────────────────────────────────────────────
