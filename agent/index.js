@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 import { program }              from 'commander';
 import { AgentLoop }            from './AgentLoop.js';
-import { loadOrCreateWallet }   from './wallet.js';
+import { loadOrCreateKeys }     from './wallet.js';
 import { AnthropicProvider }    from './providers/AnthropicProvider.js';
 import { OllamaProvider }       from './providers/OllamaProvider.js';
 import { ClaudeCodeProvider }   from './providers/ClaudeCodeProvider.js';
 import { GeminiProvider }       from './providers/GeminiProvider.js';
 import { OpenRouterProvider }   from './providers/OpenRouterProvider.js';
+import { NearAIProvider, NEAR_AI_DEFAULT_MODEL } from './providers/NearAIProvider.js';
 
 program
-  .name('mmorpg-agent')
-  .description('LLM agent CLI for agent-mmorpg')
+  .name('agentx-near-agent')
+  .description('LLM agent for AGENTX on NEAR')
   .option('--server <url>',     'Socket.io server URL',             'http://localhost:3000')
-  .option('--provider <name>',  'LLM provider: anthropic | ollama', 'ollama')
+  .option('--provider <name>',  'LLM provider: nearai | anthropic | gemini | openrouter | ollama | claudecode', 'ollama')
   .option('--model <name>',     'Model name (provider-specific)')
-  .option('--api-key <key>',    'Anthropic API key (or set ANTHROPIC_API_KEY)')
+  .option('--api-key <key>',    'Provider API key (or set the provider env var)')
   .option('--ollama-url <url>', 'Ollama base URL',                   'http://localhost:11434')
   .option('--tick-ms <ms>',     'Milliseconds between LLM ticks',   '1200')
-  .option('--agent-id <id>',    'Unique agent identifier',           `agent_${Math.random().toString(36).slice(2, 7)}`)
+  .option('--agent-id <id>',    'Unique agent identifier',           `agent-${Math.random().toString(36).slice(2, 7)}`)
   .parse();
 
 const opts = program.opts();
@@ -58,6 +59,16 @@ if (opts.provider === 'anthropic') {
   if (opts.model) modelArgs.model = opts.model;
   provider = new OpenRouterProvider({ apiKey, ...modelArgs });
   console.log(`[Agent] Using OpenRouter (model: ${opts.model ?? 'google/gemini-2.5-flash:google'})`);
+} else if (opts.provider === 'nearai') {
+  const apiKey = opts.apiKey ?? process.env.NEAR_AI_API_KEY;
+  if (!apiKey) {
+    console.error('Error: NEAR AI Cloud API key required. Use --api-key or set NEAR_AI_API_KEY env var.');
+    process.exit(1);
+  }
+  const modelArgs = {};
+  if (opts.model) modelArgs.model = opts.model;
+  provider = new NearAIProvider({ apiKey, ...modelArgs });
+  console.log(`[Agent] Using NEAR AI Cloud (model: ${opts.model ?? NEAR_AI_DEFAULT_MODEL})`);
 } else {
   const modelArgs = {};
   if (opts.model) modelArgs.model = opts.model;
@@ -65,17 +76,16 @@ if (opts.provider === 'anthropic') {
   console.log(`[Agent] Using Ollama (model: ${opts.model ?? 'llama3'}, url: ${opts.ollamaUrl})`);
 }
 
-const { wallet, address } = await loadOrCreateWallet(opts.agentId);
+const keys = await loadOrCreateKeys(opts.agentId);
 
 const loop = new AgentLoop({
   serverUrl: opts.server,
   provider,
   agentId:   opts.agentId,
-  tickMs:    parseInt(opts.tickMs, 10),
-  wallet,
+  keys,
 });
 
-console.log(`[Agent] Starting agent "${opts.agentId}" wallet=${address} → ${opts.server}`);
+console.log(`[Agent] Starting agent "${opts.agentId}" agentKey=${keys.agentPublicKey} → ${opts.server}`);
 loop.start();
 
 process.on('SIGINT',  () => { loop.stop(); process.exit(0); });

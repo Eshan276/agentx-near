@@ -2,47 +2,44 @@
 import { program } from 'commander';
 import chalk       from 'chalk';
 import { input, password, select, confirm } from '@inquirer/prompts';
-import { ethers }  from 'ethers';
-
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { JsonRpcProvider, yoctoToNear } from 'near-api-js';
 
 import { printBanner, section, ok, warn, info, err, dim } from './banner.js';
 import { configPath, walletPath, loadConfig, saveConfig, configExists, walletExists } from './config.js';
-import { loadOrCreateWallet } from '../wallet.js';
+import { loadOrCreateKeys, viewGold, accountLabel } from '../wallet.js';
 import { runAgent }           from './run.js';
-import { PACKAGE_ROOT }       from '../paths.js';
+import { readFileSync }       from 'node:fs';
 
-// Bundled in the package so the CLI works after `npx @eshan276/agentx`.
-// Falls back to the repo path for local development.
-const DEPLOYED_CANDIDATES = [
-  join(PACKAGE_ROOT, 'deployed.json'),                    // shipped in npm package
-  join(PACKAGE_ROOT, '..', 'contracts', 'deployed.json'), // local repo dev
-];
+const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
-function loadDeployed() {
-  for (const p of DEPLOYED_CANDIDATES) {
-    if (!existsSync(p)) continue;
-    try { return JSON.parse(readFileSync(p, 'utf-8')); } catch { /* try next */ }
-  }
-  return null;
-}
-
-const ERC20_BALANCE_ABI = ['function balanceOf(address) view returns (uint256)'];
+const DEFAULT_SERVER = 'http://localhost:3000';
 
 const PROVIDERS = [
-  { name: 'Gemini (Google)',         value: 'gemini'      },
-  { name: 'Anthropic Claude',        value: 'anthropic'   },
-  { name: 'OpenRouter (multi-model)', value: 'openrouter' },
-  { name: 'Ollama (local)',           value: 'ollama'     },
-  { name: 'ClaudeCode (no API)',      value: 'claudecode' },
+  { name: 'NEAR AI Cloud (private inference)', value: 'nearai'     },
+  { name: 'Gemini (Google)',                   value: 'gemini'     },
+  { name: 'Anthropic Claude',                  value: 'anthropic'  },
+  { name: 'OpenRouter (multi-model)',          value: 'openrouter' },
+  { name: 'Ollama (local)',                    value: 'ollama'     },
+  { name: 'ClaudeCode (no API)',               value: 'claudecode' },
 ];
 
 const PROVIDER_ENV = {
+  nearai:     'NEAR_AI_API_KEY',
   gemini:     'GEMINI_API_KEY',
   anthropic:  'ANTHROPIC_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
 };
+
+/** GET <server>/api/near → { ready, network, contractId, rootAccountId, rpcUrl, explorerUrl } or null. */
+async function fetchNearInfo(serverUrl) {
+  try {
+    const res = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/near`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 // ── init ──────────────────────────────────────────────────────────────────────
 
@@ -51,9 +48,10 @@ async function cmdInit(opts) {
   section('Agent setup');
 
   const agentId = await input({
-    message: 'Agent name (used as id):',
-    default: opts.agentId || 'agent_01',
-    validate: v => /^[a-z0-9_-]+$/i.test(v) || 'use letters, digits, _ or - only',
+    message: 'Agent name (used as id and NEAR account name):',
+    default: opts.agentId || 'agent-01',
+    validate: v => (/^[a-z0-9]+([_-][a-z0-9]+)*$/i.test(v) && v.length <= 32)
+      || 'letters and digits, optionally separated by single _ or - (max 32 chars)',
   });
 
   if (configExists(agentId) && !opts.force) {
@@ -67,36 +65,16 @@ async function cmdInit(opts) {
     }
   }
 
-  // ── Wallet ──
-  section('Wallet');
-  const { wallet, address, provider } = await loadOrCreateWallet(agentId);
-  if (walletExists(agentId)) {
-    ok(`Loaded existing wallet: ${chalk.bold(address)}`);
-    dim(`keyfile: ${walletPath(agentId)}`);
-  } else {
-    ok(`Created new wallet: ${chalk.bold(address)}`);
-    dim(`keyfile: ${walletPath(agentId)} (encrypted)`);
-  }
-
-  // Check ETH balance for gas
-  // Heads-up only — when the agent connects to the public AGENTX server, the
-  // server auto-drips a small amount of native MNT gas + 100 GGLD to the agent's
-  // wallet on register. No manual faucet visit needed for the default flow.
-  let ethBalance = 0n;
-  try {
-    ethBalance = await provider.getBalance(address);
-  } catch { /* RPC may be down — non-fatal */ }
-  const ethStr = ethers.formatEther(ethBalance);
-  if (ethBalance === 0n) {
-    info('Wallet has 0 balance — that\'s fine.');
-    dim('On register, the public AGENTX server drips ~0.005 MNT + mints 100 GGLD');
-    dim('directly to this wallet on Mantle Sepolia. No manual faucet needed for the default flow.');
-    console.log();
-    const wait = await confirm({ message: 'Pause and wait for an external funding tx? (default no — server will drip)', default: false });
-    if (wait) await waitForFunding(provider, address);
-  } else {
-    ok(`Native balance: ${chalk.bold(ethStr)} (sufficient for gas)`);
-  }
+  // ── Keys ──
+  section('NEAR keys');
+  const existed = walletExists(agentId);
+  const keys = await loadOrCreateKeys(agentId);
+  ok(`${existed ? 'Loaded existing' : 'Created new'} keys ${chalk.gray(`(${walletPath(agentId)}, encrypted)`)}`);
+  console.log(chalk.bold('    owner (full access, yours): ') + chalk.cyan(keys.ownerPublicKey));
+  console.log(chalk.bold('    agent (sell/buy only):      ') + chalk.cyan(keys.agentPublicKey));
+  dim(`Your NEAR account will be ${chalk.bold(`${accountLabel(agentId)}.<root>`)} — the game server creates it`);
+  dim('on first connect, registers it with 100 GGLD and pays all gas. No funding needed.');
+  dim(`Export the owner key any time with: agentx keys ${agentId}`);
 
   // ── Persona ──
   section('Persona');
@@ -132,6 +110,7 @@ async function cmdInit(opts) {
       });
     }
   }
+  if (providerName === 'nearai') dim('Model ids with tool support: GET https://cloud-api.near.ai/v1/models (look for "tools").');
   const customModel = await input({
     message: 'Custom model name (leave blank for provider default):',
     default: '',
@@ -142,8 +121,14 @@ async function cmdInit(opts) {
   section('Game server');
   const serverUrl = await input({
     message: 'Server URL:',
-    default: opts.server || 'https://backend.iameshan.tech',
+    default: opts.server || DEFAULT_SERVER,
   });
+  const nearInfo = await fetchNearInfo(serverUrl);
+  if (nearInfo?.ready && nearInfo.rootAccountId) {
+    ok(`Server is on NEAR ${nearInfo.network} — your account: ${chalk.bold(`${accountLabel(agentId)}.${nearInfo.rootAccountId}`)}`);
+  } else {
+    warn('Could not reach the server\'s NEAR info right now — the account id is assigned when the agent connects.');
+  }
 
   // ── Save ──
   const cfg = {
@@ -166,7 +151,7 @@ async function cmdInit(opts) {
   } else {
     console.log();
     info(`Run later with: ${chalk.bold(`agentx run ${agentId}`)}`);
-    dim(`Tip: install globally for shorter commands: npm i -g @eshan27/agentx`);
+    dim('Tip: install globally for shorter commands: npm i -g @eshan27/agentx-near');
   }
 }
 
@@ -185,84 +170,86 @@ async function cmdRun(agentId, opts) {
 
 // ── wallet ────────────────────────────────────────────────────────────────────
 
-async function cmdWallet(agentId) {
+async function cmdWallet(agentId, opts) {
   printBanner();
   if (!walletExists(agentId)) {
-    err(`No wallet for "${agentId}". Run ${chalk.bold(`agentx init --agent-id ${agentId}`)} first.`);
+    err(`No keys for "${agentId}". Run ${chalk.bold(`agentx init --agent-id ${agentId}`)} first.`);
     process.exit(1);
   }
-  const { address, provider } = await loadOrCreateWallet(agentId);
+  const keys = await loadOrCreateKeys(agentId);
+  const serverUrl = opts.server || loadConfig(agentId)?.serverUrl || DEFAULT_SERVER;
   section(`Wallet: ${agentId}`);
-  console.log(chalk.bold('  Address: ') + chalk.cyan(address));
+
+  const nearInfo = await fetchNearInfo(serverUrl);
+  if (!nearInfo?.ready || !nearInfo.rootAccountId) {
+    err(`Could not get NEAR info from ${serverUrl}/api/near — is the server running with NEAR enabled?`);
+    console.log(chalk.bold('  Agent key: ') + chalk.cyan(keys.agentPublicKey));
+    dim(`keyfile: ${walletPath(agentId)}`);
+    return;
+  }
+  const accountId = `${accountLabel(agentId)}.${nearInfo.rootAccountId}`;
+  console.log(chalk.bold('  Account:  ') + chalk.cyan(accountId) + chalk.gray(` (${nearInfo.network})`));
+
+  const provider = new JsonRpcProvider({ url: nearInfo.rpcUrl });
   try {
-    const eth  = await provider.getBalance(address);
-    console.log(chalk.bold('  ETH:     ') + chalk.cyan(ethers.formatEther(eth)) + ' ETH');
+    const acc = await provider.viewAccount({ accountId });
+    console.log(chalk.bold('  NEAR:     ') + chalk.cyan(yoctoToNear(acc.amount, 4)) + ' NEAR');
   } catch (e) {
-    err('Could not read ETH balance: ' + e.message);
-  }
-  const deployed = loadDeployed();
-  if (deployed?.goldToken) {
-    try {
-      const gold = new ethers.Contract(deployed.goldToken, ERC20_BALANCE_ABI, provider);
-      const bal  = await gold.balanceOf(address);
-      console.log(chalk.bold('  GGLD:    ') + chalk.yellow(ethers.formatEther(bal)) + ' GGLD');
-    } catch (e) {
-      err('Could not read GGLD balance: ' + e.message);
+    if (/does not exist|UNKNOWN_ACCOUNT/i.test(String(e?.message ?? e))) {
+      warn('Account does not exist yet — it is created the first time the agent connects.');
+    } else {
+      err('Could not read NEAR balance: ' + e.message);
     }
-  } else {
-    dim('GGLD: contracts/deployed.json not found — deploy contracts to see balance');
   }
-  dim(`keyfile: ${walletPath(agentId)}`);
-  dim(`explorer: https://sepolia.basescan.org/address/${address}`);
+  try {
+    const gold = await viewGold(nearInfo.rpcUrl, nearInfo.contractId, accountId);
+    console.log(chalk.bold('  GGLD:     ') + chalk.yellow(gold) + ' GGLD');
+  } catch (e) {
+    err('Could not read GGLD balance: ' + e.message);
+  }
+  console.log(chalk.bold('  Owner key:') + ' ' + chalk.cyan(keys.ownerPublicKey) + chalk.gray(' (full access)'));
+  console.log(chalk.bold('  Agent key:') + ' ' + chalk.cyan(keys.agentPublicKey) + chalk.gray(' (sell/buy only)'));
+  dim(`keyfile:  ${walletPath(agentId)}`);
+  dim(`explorer: ${nearInfo.explorerUrl}/address/${accountId}`);
 }
 
-// ── fund ──────────────────────────────────────────────────────────────────────
+// ── keys ──────────────────────────────────────────────────────────────────────
 
-async function cmdFund(agentId) {
+async function cmdKeys(agentId) {
   printBanner();
   if (!walletExists(agentId)) {
-    err(`No wallet for "${agentId}". Run ${chalk.bold('agentx init')} first.`);
+    err(`No keys for "${agentId}". Run ${chalk.bold(`agentx init --agent-id ${agentId}`)} first.`);
     process.exit(1);
   }
-  const { address, provider } = await loadOrCreateWallet(agentId);
-  section(`Fund: ${agentId}`);
-  console.log(chalk.bold('  Address: ') + chalk.cyan(address));
+  section(`Owner key: ${agentId}`);
+  warn(chalk.bold('This prints the FULL-ACCESS secret key of your agent\'s NEAR account.'));
+  dim('Anyone with it controls the account: they can move its NEAR and GGLD, add or remove keys,');
+  dim('or delete it. Only use it to import the account into a NEAR wallet you control.');
+  dim('Do not paste it into chats, issues, or screenshots.');
   console.log();
-  dim('Heads up: the public AGENTX server auto-drips MNT + GGLD on register.');
-  dim('Only need this command if you self-host the server or top up manually.');
-  dim('  Testnet faucet: https://faucet.sepolia.mantle.xyz');
-  console.log();
-  await waitForFunding(provider, address);
-}
-
-// ── shared: poll for ETH balance ──────────────────────────────────────────────
-
-async function waitForFunding(provider, address) {
-  info(`Watching ${chalk.cyan(address)} for ETH... ${chalk.gray('(Ctrl+C to stop)')}`);
-  let last = 0n;
-  while (true) {
-    try {
-      const bal = await provider.getBalance(address);
-      if (bal > 0n) {
-        ok(`Received ${chalk.bold(ethers.formatEther(bal))} ETH — wallet funded.`);
-        return;
-      }
-      if (bal !== last) last = bal;
-    } catch { /* keep polling */ }
-    await new Promise(r => setTimeout(r, 5000));
+  const sure = await confirm({ message: 'Show the owner secret key now?', default: false });
+  if (!sure) {
+    info('Cancelled — nothing printed.');
+    return;
   }
+  const { ownerKey, ownerPublicKey } = await loadOrCreateKeys(agentId);
+  console.log();
+  console.log(chalk.bold('  Public key: ') + chalk.cyan(ownerPublicKey));
+  console.log(chalk.bold('  Secret key: ') + chalk.red(ownerKey.toString()));
+  console.log();
+  dim('Import it in a NEAR wallet (e.g. Meteor or MyNearWallet → "import with private key").');
 }
 
 // ── CLI wiring ────────────────────────────────────────────────────────────────
 
 program
   .name('agentx')
-  .description('autonomous on-chain agent CLI')
-  .version('0.3.0');
+  .description('AGENTX on NEAR — autonomous on-chain agent CLI')
+  .version(PKG.version);
 
 program
   .command('init')
-  .description('Interactive setup: wallet, persona, provider, server')
+  .description('Interactive setup: NEAR keys, persona, provider, server')
   .option('--agent-id <id>',  'Skip the agent name prompt')
   .option('--server <url>',   'Skip the server URL prompt')
   .option('--force',          'Overwrite existing config without asking')
@@ -276,13 +263,14 @@ program
 
 program
   .command('wallet <agent-id>')
-  .description('Show wallet address and balances')
+  .description('Show the NEAR account, NEAR + GGLD balances and explorer link')
+  .option('--server <url>', 'Server to ask for NEAR network info (default: saved config)')
   .action(cmdWallet);
 
 program
-  .command('fund <agent-id>')
-  .description('Show funding instructions and watch for ETH arrival')
-  .action(cmdFund);
+  .command('keys <agent-id>')
+  .description('Print the owner (full-access) secret key after confirmation, to import into a NEAR wallet')
+  .action(cmdKeys);
 
 program.parseAsync(process.argv).catch(e => {
   // @inquirer throws when user hits Ctrl+C — exit cleanly
