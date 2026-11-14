@@ -7,6 +7,8 @@
  * Root account (owner of the game contract, parent of every agent account, gas relayer):
  *   - AGENTX_ROOT_ACCOUNT_ID + AGENTX_ROOT_PRIVATE_KEY  → use that funded account, or
  *   - FUNDER_ACCOUNT_ID + FUNDER_PRIVATE_KEY            → create a fresh agentx-xxxx.testnet funded with ROOT_NEAR (default 4.5)
+ *   - nothing set                                       → create agentx-xxxx.testnet with 10 NEAR from the testnet faucet
+ *     (the same service `near account create-account sponsor-by-faucet-service` uses)
  *
  * Creates game.<root> (the Rust contract: GGLD token + AMM + agent registry), seeds the 10 pools
  * and writes server/.env. Re-running is safe: existing accounts/pools are kept.
@@ -24,6 +26,7 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RPC = process.env.NEAR_RPC_URL ?? 'https://test.rpc.fastnear.com';
 const provider = new JsonRpcProvider({ url: RPC });
 const GOLD = 10n ** 18n;
+const FAUCET_URL = process.env.NEAR_FAUCET_URL ?? 'https://helper.nearprotocol.com/account';
 const log = (...a) => console.log('›', ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const exists = (accountId) => provider.viewAccount({ accountId }).then(() => true, () => false);
@@ -38,11 +41,29 @@ const POOLS = [
 async function rootAccount() {
   const e = process.env;
   if (e.AGENTX_ROOT_ACCOUNT_ID && e.AGENTX_ROOT_PRIVATE_KEY) return { id: e.AGENTX_ROOT_ACCOUNT_ID, key: e.AGENTX_ROOT_PRIVATE_KEY };
-  if (!e.FUNDER_ACCOUNT_ID || !e.FUNDER_PRIVATE_KEY) {
-    throw new Error('Set AGENTX_ROOT_ACCOUNT_ID + AGENTX_ROOT_PRIVATE_KEY (a funded testnet account), or FUNDER_ACCOUNT_ID + FUNDER_PRIVATE_KEY to create one.');
+  const saved = resolve(repo, 'server/.root-account.json');
+  if (existsSync(saved)) {
+    const r = JSON.parse(readFileSync(saved, 'utf8'));
+    log(`reusing root account ${r.account_id} from server/.root-account.json`);
+    return { id: r.account_id, key: r.private_key };
   }
   const id = `agentx-${randomBytes(3).toString('hex')}.testnet`;
   const kp = KeyPair.fromRandom('ed25519');
+  if (!e.FUNDER_ACCOUNT_ID || !e.FUNDER_PRIVATE_KEY) {
+    log(`creating ${id} with the NEAR testnet faucet…`);
+    const res = await fetch(FAUCET_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ newAccountId: id, newAccountPublicKey: kp.getPublicKey().toString() }),
+    });
+    if (!res.ok) {
+      throw new Error(`Faucet failed (${res.status}). Set AGENTX_ROOT_ACCOUNT_ID + AGENTX_ROOT_PRIVATE_KEY for a funded testnet account, or FUNDER_ACCOUNT_ID + FUNDER_PRIVATE_KEY to fund a new one.`);
+    }
+    for (let i = 0; i < 20 && !(await exists(id)); i++) await sleep(1500);
+    // Keep the root key somewhere even if a later step fails.
+    writeFileSync(resolve(repo, 'server/.root-account.json'), JSON.stringify({ account_id: id, private_key: kp.toString() }), { mode: 0o600 });
+    return { id, key: kp.toString() };
+  }
   const funder = new Account(e.FUNDER_ACCOUNT_ID, provider, e.FUNDER_PRIVATE_KEY);
   const amount = e.ROOT_NEAR ?? '4.5';
   log(`creating ${id} with ${amount} NEAR from ${e.FUNDER_ACCOUNT_ID}`);
@@ -58,8 +79,10 @@ async function rootAccount() {
 }
 
 async function main() {
-  const wasmPath = resolve(repo, 'contracts/target/near/agentx/agentx.wasm');
-  if (!existsSync(wasmPath)) throw new Error('Missing contract wasm — run `npm run build:contract` first.');
+  // Prefer a fresh local build; fall back to the prebuilt wasm shipped in contracts/res.
+  const wasmPath = [resolve(repo, 'contracts/target/near/agentx/agentx.wasm'), resolve(repo, 'contracts/res/agentx.wasm')].find(existsSync);
+  if (!wasmPath) throw new Error('Missing contract wasm — run `npm run build:contract` first.');
+  log(`contract wasm: ${wasmPath.replace(repo + '/', '')}`);
 
   const root = await rootAccount();
   const rootAcc = new Account(root.id, provider, root.key);

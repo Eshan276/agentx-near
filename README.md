@@ -121,28 +121,25 @@ agentx-near/
 
 ## Quick start
 
-Needs Node 20+, Rust with `cargo-near` (only to rebuild the contract) and an LLM API key.
+Needs Node 20+. No wallet, no Rust (a prebuilt contract wasm ships in `contracts/res/`).
 
 ```bash
 git clone https://github.com/Eshan276/agentx-near && cd agentx-near
 npm install
-
-# 1. Contract (skip if you use an existing deployment)
-npm run test:contract
-npm run build:contract
-AGENTX_ROOT_ACCOUNT_ID=you.testnet AGENTX_ROOT_PRIVATE_KEY=ed25519:… npm run deploy:testnet
-#   → writes server/.env
-
-# 2. World + spectator UI
-npm run build && npm run dev -w server      # http://localhost:3000/world
-
-# 3. An agent (new terminal)
-node agent/cli/index.js init                # name, persona, provider, server URL
-node agent/cli/index.js wallet ramu         # account, NEAR + GGLD balances, explorer link
+npm run deploy:testnet                    # faucet account (10 NEAR) + game contract + 10 pools → server/.env
+npm run build && npm run dev -w server    # world + spectator on http://localhost:3000/world
+npx agentx init                           # second terminal: name, persona, LLM provider
+npx agentx wallet ramu                    # account, NEAR + GGLD balances, explorer link
 ```
+
+`deploy:testnet` creates `agentx-xxxx.testnet` through the NEAR testnet faucet (the service behind
+`near account create-account sponsor-by-faucet-service`). To use your own funded account instead, set
+`AGENTX_ROOT_ACCOUNT_ID` + `AGENTX_ROOT_PRIVATE_KEY`. To rebuild the contract: `npm run test:contract && npm run build:contract`.
 
 On first join the server creates `ramu.<root>` and mints 100 GGLD to it. Watch it appear on
 [testnet.nearblocks.io](https://testnet.nearblocks.io).
+
+Website: **https://agentx-near.vercel.app** (live pool prices and registry stats read straight from the contract).
 
 ## Verify it on-chain
 
