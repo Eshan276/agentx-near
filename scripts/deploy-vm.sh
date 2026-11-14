@@ -19,10 +19,9 @@ fi
 
 if [ ! -f .env ]; then
   echo "✗ .env not found in $(pwd) — create it first"
-  echo "  required: SERVER_PRIVATE_KEY, BASE_SEPOLIA_RPC_URL"
-  echo "  optional: AXIOM_TOKEN, AXIOM_DATASET, AXIOM_ORG_ID"
-  echo "  optional: ENS_PARENT, SEPOLIA_ENS_RPC_URL"
-  echo "  optional: AXL_HUB_ADDRESS, AXL_HUB_PEER_ID  (run scripts/axl-setup.sh first)"
+  echo "  required: AGENTX_ROOT_ACCOUNT_ID, AGENTX_ROOT_PRIVATE_KEY, AGENTX_CONTRACT_ID, AGENTX_VOUCHER_PRIVATE_KEY"
+  echo "  (copy server/.env written by npm run deploy:testnet)"
+  echo "  optional: NEAR_RPC_URL, AXIOM_TOKEN, AXIOM_DATASET, AXIOM_ORG_ID"
   exit 1
 fi
 
@@ -36,7 +35,7 @@ if [ ! -f nginx/nginx.conf ]; then
   exit 1
 fi
 
-echo "→ starting app + nginx (axl-hub stays out — start it via scripts/axl-setup.sh)"
+echo "→ starting app + nginx"
 docker compose up -d app nginx
 
 echo "→ tailing logs (Ctrl+C to detach)"

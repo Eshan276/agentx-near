@@ -7,7 +7,7 @@ FROM node:20-alpine AS client-build
 WORKDIR /repo
 
 # Native build toolchain for node-gyp deps (bufferutil, utf-8-validate,
-# some 0G SDK deps). Alpine doesn't ship these by default.
+# native WebSocket helpers). Alpine doesn't ship these by default.
 RUN apk add --no-cache python3 make g++ libc6-compat
 
 # Copy only what's needed to install workspace deps for the client
@@ -54,9 +54,8 @@ COPY client/package.json ./client/
 COPY agent/package.json  ./agent/
 COPY --from=client-build /repo/node_modules ./node_modules
 
-# Server source + Web3 contract addresses
+# Server source (NEAR config comes from env vars, see server/.env.example)
 COPY server   ./server
-COPY contracts/deployed.json ./contracts/deployed.json
 
 # WorldSimulation reads ../../client/public/tilemap.json relative to server/src/
 # Ship the source tilemap so that relative path still resolves at runtime.
