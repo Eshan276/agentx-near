@@ -1,0 +1,18 @@
+[package]
+name = "agentx"
+version = "0.1.0"
+edition = "2021"
+description = "AGENTX on NEAR: GameGold (GGLD, NEP-141) + a multi-resource constant-product AMM + an on-chain agent registry"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+near-contract-standards = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
+ed25519-dalek = "2"
+bs58 = "0.5"
+
