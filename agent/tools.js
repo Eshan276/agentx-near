@@ -40,7 +40,7 @@ export const TOOLS = [
   },
   {
     name: 'swap',
-    description: 'Trade resources for GGLD (sell) or GGLD for resources (buy) via the on-chain AMM. Prices move dynamically — call get_prices() first to check current rates.',
+    description: 'Trade resources for GGLD (sell) or GGLD for resources (buy) on the AMM in the game contract on NEAR. Your NEAR account signs the trade; the server adds the sell voucher and pays the gas, so swaps are free for you. Prices move with every trade — call get_prices() first.',
     input_schema: {
       type: 'object',
       properties: {
@@ -65,7 +65,7 @@ export const TOOLS = [
   },
   {
     name: 'get_prices',
-    description: 'Get current AMM prices for all resources in GGLD per unit. Prices move with supply/demand — check before selling.',
+    description: 'Get current on-chain AMM prices (NEAR game contract) for all resources in GGLD per unit. Prices move with supply/demand — check before selling.',
     input_schema: {
       type: 'object',
       properties: {},
@@ -94,11 +94,11 @@ export const TOOLS = [
   },
   {
     name: 'whisper',
-    description: 'Send a PRIVATE peer-to-peer message to one specific agent over Gensyn AXL — encrypted, off-server, only that agent receives it. Use this for trade negotiation, coordinated price moves, or anything you do NOT want broadcast to the spectator UI. Public chat (say) is for the world; whisper is for direct deals.',
+    description: 'Send a PRIVATE message to one specific agent. The server delivers it only to that agent — spectators and other agents never see it. Use this for trade negotiation, coordinated price moves, or anything you do NOT want broadcast. Public chat (say) is for the world; whisper is for direct deals.',
     input_schema: {
       type: 'object',
       properties: {
-        target:  { type: 'string', description: 'Recipient: ENS name (e.g. "ramu.agentx.eth"), agent id, or peer id' },
+        target:  { type: 'string', description: 'Recipient: agent id (e.g. "ramu") or NEAR account id (e.g. "ramu.agentx.testnet")' },
         message: { type: 'string', description: 'What to whisper (max 200 chars)' },
         reason:  { type: 'string', description: 'Why you are whispering' },
       },
@@ -154,13 +154,16 @@ You can call multiple tools in sequence to complete a goal — keep going until 
 - Interacting with merchant or chest costs 10 energy. Harvesting nodes costs 0 energy.
 - Die at 0 HP → respawn at (40,35), lose nothing
 
-### Economy — On-chain AMM
-- All trading happens via on-chain AMM pools on Base Sepolia — no merchant visit needed
+### Economy — on NEAR (testnet)
+- You have your own named NEAR account (e.g. yourname.agentx.testnet). Your human owns it; you trade with a key that can only call sell/buy on the game contract.
+- GGLD is a NEP-141 fungible token. All trading happens on the AMM pools in the game contract — no merchant visit needed
+- Gas is sponsored by the game server: swaps never cost you NEAR
 - call get_prices() to see current GGLD rates before trading
-- Sell resources: swap(resourceId, "sell", amount) — resource tokens → GGLD
+- Sell resources: swap(resourceId, "sell", amount) — resources → GGLD. The server checks you really harvested them and signs a voucher automatically
 - Buy consumables: swap(itemId, "buy", amount) — GGLD → item (fish/meat/honey etc.)
 - Prices move with supply and demand: flooding the market with planks lowers the plank price
 - You start with 100 GGLD — check your goldBalance in the observation
+- If swap says your NEAR account is still being created, harvest or explore and try again shortly
 - HP items: fish(+10HP), meat(+15HP), heart(+20HP), life_potion(+40HP)
 - Energy items: honey(+20EN), water_pot(+15EN)
 
@@ -180,11 +183,11 @@ You MUST call say() at least once per session. Speak like a character in the wor
 
 ## Private comms — whisper()
 - say() is PUBLIC — every spectator and every other agent sees it.
-- whisper(target, message) is PRIVATE — peer-to-peer over Gensyn AXL, encrypted, server doesn't see it.
+- whisper(target, message) is PRIVATE — the server delivers it only to that one agent, it is never shown to spectators.
 - Use whisper() to coordinate trades, share intel, or strike deals you don't want public.
-- Target by ENS name (e.g. "ramu.agentx.eth"), agent id, or peer id — whichever you see in the observation.
+- Target by agent id or NEAR account id — whichever you see under "Other agents" in the observation.
 - Inbound whispers appear in the observation under "Whispers (private):" — react accordingly.
-- Example: if you have plank surplus and ramu has plank shortage, whisper("ramu.agentx.eth", "I'll sell you 5 planks at 0.15 GGLD each, below market — interested?", "trade negotiation").
+- Example: if you have plank surplus and ramu has plank shortage, whisper("ramu", "I'll sell 5 planks into the pool slowly so the price holds — you buy after?", "trade negotiation").
 Keep messages short and in-character. say() is free — use it.
 
 ## Tool sequencing example

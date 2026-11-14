@@ -37,13 +37,23 @@ function dirFromDelta(dx, dy) {
 }
 
 export class AgentLoop {
-  constructor({ serverUrl, provider, agentId, wallet, persona, axl }) {
+  /**
+   * @param {object} o
+   * @param {string} o.serverUrl
+   * @param {object} o.provider  LLM provider with completeWithTools()
+   * @param {string} o.agentId
+   * @param {{ ownerPublicKey: string, agentPublicKey: string, agentKey: import('near-api-js').KeyPair }} o.keys
+   *        from wallet.loadOrCreateKeys(). Only public keys leave this process.
+   * @param {string} [o.persona]
+   */
+  constructor({ serverUrl, provider, agentId, keys, persona }) {
     this._serverUrl = serverUrl;
     this._provider  = provider;
     this._agentId   = agentId;
-    this._wallet    = wallet ?? null;
+    this._keys      = keys ?? null;
     this._persona   = persona ?? '';
-    this._axl       = axl ?? null;
+    this._account   = null;   // server:account payload once the NEAR account is live
+    this._inbox     = [];     // incoming whispers since the last session
     this._socket    = null;
     this._snapshot  = null;
     this._running   = false;
@@ -62,13 +72,34 @@ export class AgentLoop {
     this._socket.on('connect', () => {
       console.log(`[Agent:${this._agentId}] connected`);
       this._socket.emit('agent:register', {
-        agentId:       this._agentId,
-        walletAddress: this._wallet?.address ?? null,
-        persona:       this._persona ?? '',
-        axlPeerId:     this._axl?.peerId ?? null,
+        agentId:        this._agentId,
+        ownerPublicKey: this._keys?.ownerPublicKey ?? null,
+        agentPublicKey: this._keys?.agentPublicKey ?? null,
+        persona:        this._persona ?? '',
       });
-      this._running = true;
-      this._loop();
+      if (!this._running) {
+        this._running = true;
+        this._loop();
+      }
+    });
+
+    this._socket.on('server:account', acc => {
+      if (!acc?.ok) {
+        console.error(`[Agent:${this._agentId}] NEAR account setup failed${acc?.accountId ? ` for ${acc.accountId}` : ''}: ${acc?.error ?? 'unknown error'}`);
+        return;
+      }
+      this._account = acc;
+      const link = acc.explorerUrl ? `${acc.explorerUrl}/address/${acc.accountId}` : '';
+      console.log(`[Agent:${this._agentId}] NEAR account ${acc.created ? 'created' : 'ready'}: ${acc.accountId} (${acc.network})${link ? ` — ${link}` : ''}`);
+      if (acc.created && acc.txHash && acc.explorerUrl) console.log(`[Agent:${this._agentId}]   setup tx: ${acc.explorerUrl}/txns/${acc.txHash}`);
+    });
+
+    this._socket.on('server:whisper', w => {
+      const text = String(w?.message ?? '').slice(0, 200);
+      if (!text) return;
+      this._inbox.push({ from: w.from ?? 'unknown', fromAccount: w.fromAccount ?? null, text });
+      if (this._inbox.length > 20) this._inbox.shift();
+      console.log(`[Agent:${this._agentId}] whisper from ${w.from}: "${text}"`);
     });
 
     this._socket.on('server:observation', snap => {
@@ -115,18 +146,10 @@ export class AgentLoop {
   async _runSession() {
     const snap = this._snapshot;
 
-    // Drain any inbound whispers since the last session and attach to the snapshot
+    // Drain whispers received since the last session and attach them to the snapshot
     // so they show up in the observation prompt under "Whispers (private)".
-    if (this._axl?.ready) {
-      const inbox = this._axl.drainInbox();
-      if (inbox.length) {
-        snap.whispers = inbox.map(m => {
-          const txt    = m.payload?.text ?? (typeof m.payload === 'string' ? m.payload : JSON.stringify(m.payload));
-          const fromEns = m.payload?.fromEns;
-          const fromId  = m.payload?.from;
-          return { from: fromEns || fromId || m.from.slice(0, 8), text: String(txt).slice(0, 200) };
-        });
-      }
+    if (this._inbox.length) {
+      snap.whispers = this._inbox.splice(0);
     }
 
     const { tileX, tileY, hp, energy, zone } = snap.player;
@@ -232,13 +255,17 @@ export class AgentLoop {
 
       case 'swap': {
         const snap = this._snapshot;
-        const contracts = snap.contractAddresses;
-        if (!contracts?.gameAMM || !contracts?.goldToken || !this._wallet) {
-          return { ok: false, error: 'Web3 not available — wallet or contract addresses missing' };
+        const contract  = snap.contractAddresses;
+        const accountId = snap.nearAccount ?? this._account?.accountId ?? null;
+        if (!contract?.contractId || !this._keys?.agentKey) {
+          return { ok: false, error: 'NEAR is not available on this server right now — keep harvesting and try later' };
+        }
+        if (!snap.nearAccountReady || !accountId) {
+          return { ok: false, error: 'Your NEAR account is still being created — do something else (harvest, explore) and swap in a moment' };
         }
         const { resourceId, direction, amount } = input;
 
-        // Guard: don't burn gas selling resources we don't have in inventory.
+        // Guard: don't ask for a voucher for resources we don't have.
         if (direction === 'sell') {
           const have = (snap.inventory ?? []).find(s => s.id === resourceId)?.qty ?? 0;
           if (have < amount) {
@@ -246,19 +273,19 @@ export class AgentLoop {
           }
         }
 
-        // Wait for the swap_complete observation push so the agent sees the new inventory.
+        // The server pushes a fresh observation (new inventory) right after relaying the swap.
         const obsPromise = new Promise(r => { this._obsResolve = r; });
 
         let result;
         try {
           result = await executeSwap({
-            wallet:      this._wallet,
-            ammAddress:  contracts.gameAMM,
-            goldAddress: contracts.goldToken,
-            rpcUrl:      contracts.rpcUrl,    // server-supplied RPC (matches the chain GameAMM is deployed to)
-            resourceId,
+            socket:    this._socket,
+            accountId,
+            agentKey:  this._keys.agentKey,
+            contract,
             direction,
-            amountUnits: amount,
+            resourceId,
+            units:     amount,
           });
         } catch (err) {
           this._obsResolve = null;
@@ -266,19 +293,11 @@ export class AgentLoop {
         }
 
         if (result.ok) {
-          this._socket.emit('agent:swap_complete', {
-            txHash:    result.txHash,
-            resourceId,
-            direction,
-            amountIn:  result.amountIn,
-            amountOut: result.amountOut,
-          });
-          // Wait up to 5s for the server to verify on-chain and push fresh inventory.
-          await Promise.race([obsPromise, new Promise(r => setTimeout(r, 5000))]);
-        } else {
-          this._obsResolve = null;
+          await Promise.race([obsPromise, sleep(5000)]);
         }
-        return result;
+        this._obsResolve = null;
+        const fresh = this._snapshot;
+        return { ...result, goldBalance: fresh?.goldBalance ?? null, inventory: fresh?.inventory };
       }
 
       case 'get_prices': {
@@ -299,30 +318,20 @@ export class AgentLoop {
       }
 
       case 'whisper': {
-        if (!this._axl?.ready) {
-          return { ok: false, error: 'AXL spoke not running — whisper unavailable' };
-        }
-        const { target, message } = input;
-        const targetMsg = String(message ?? '').slice(0, 200);
-
-        // Resolve target → axlPeerId via the latest observation's otherAgents.
+        const target = String(input.target ?? '').trim();
+        const text   = String(input.message ?? '').slice(0, 200);
+        if (!target || !text) return { ok: false, error: 'whisper needs a target and a message' };
         const others = this._snapshot?.otherAgents ?? [];
-        const peer = others.find(a =>
-          a.ensName === target || a.agentId === target || a.axlPeerId === target
-        );
-        if (!peer?.axlPeerId) {
-          return { ok: false, error: `unknown peer "${target}" (need ENS name, agentId, or peer id; visible peers: ${others.map(o => o.ensName || o.agentId).join(', ') || 'none'})` };
-        }
         try {
-          await this._axl.send(peer.axlPeerId, {
-            from: this._agentId,
-            fromEns: this._snapshot?.ensName ?? null,
-            text: targetMsg,
-          });
-          console.log(`[Agent:${this._agentId}] whisper → ${target}: "${targetMsg}"`);
-          return { ok: true, sentTo: target };
-        } catch (e) {
-          return { ok: false, error: e.message };
+          const r = await this._socket.timeout(5000).emitWithAck('agent:whisper', { target, message: text });
+          if (!r?.ok) {
+            const visible = others.map(o => o.nearAccount ? `${o.agentId} (${o.nearAccount})` : o.agentId).join(', ') || 'none';
+            return { ok: false, error: `${r?.error ?? 'whisper failed'} — visible agents: ${visible}` };
+          }
+          console.log(`[Agent:${this._agentId}] whisper → ${r.to}: "${text}"`);
+          return { ok: true, sentTo: r.to };
+        } catch {
+          return { ok: false, error: 'server did not confirm the whisper' };
         }
       }
 

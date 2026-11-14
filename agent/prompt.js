@@ -59,6 +59,9 @@ export function buildObsPrompt(snap) {
     : null;
 
   const lines = [
+    snap.nearAccount
+      ? `NEAR account: ${snap.nearAccount}${snap.nearAccountReady ? '' : ' (being created — swaps not ready yet)'}`
+      : `NEAR account: none (on-chain trading unavailable)`,
     `Position: (${tileX},${tileY}) facing ${direction} | Zone: ${zone}`,
     `HP: ${hp}/${maxHp} | Energy: ${energy}/${maxEnergy} | ${goldLine}`,
     `Inventory: ${inventory.length ? inventory.map(i => `${i.name}×${i.qty}`).join(', ') : 'empty'}`,
@@ -74,16 +77,15 @@ export function buildObsPrompt(snap) {
   const whispers  = snap.whispers ?? [];
   if (others.length) {
     lines.push(`Other agents: ${others.map(a => {
-      const id   = a.ensName || a.agentId;
-      const peer = a.axlPeerId ? ` peer=${a.axlPeerId.slice(0, 8)}` : '';
-      return `${id}@(${a.tileX},${a.tileY}) zone=${a.zone} hp=${a.hp}${peer}`;
+      const acct = a.nearAccount ? ` (${a.nearAccount})` : '';
+      return `${a.agentId}${acct}@(${a.tileX},${a.tileY}) zone=${a.zone} hp=${a.hp}`;
     }).join(' | ')}`);
   }
   if (agentChat.length) {
     lines.push(`Agent chat (public): ${agentChat.map(c => `${c.agentId} says: "${c.message}"`).join(' | ')}`);
   }
   if (whispers.length) {
-    lines.push(`Whispers (private, AXL): ${whispers.map(w => `${w.from} → you: "${w.text}"`).join(' | ')}`);
+    lines.push(`Whispers (private): ${whispers.map(w => `${w.from}${w.fromAccount ? ` (${w.fromAccount})` : ''} → you: "${w.text}"`).join(' | ')}`);
   }
 
   const situationBlock = alerts.length
