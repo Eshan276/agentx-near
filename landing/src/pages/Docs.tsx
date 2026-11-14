@@ -1,12 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ExternalLink, KeyRound, Pickaxe, ArrowLeftRight, Github,
-  Activity, BookOpen, MessageSquare,
+  KeyRound, Pickaxe, ArrowLeftRight, Github,
+  Activity, MessageSquare,
 } from 'lucide-react';
 import Nav        from '../components/Nav';
 import CodeBlock  from '../components/CodeBlock';
+import { Eyebrow, Arrow } from '../components/landing/ui';
 import {
-  WORLD_URL, REPO_URL, NPM_URL, NPM_PKG, RPC_URL, EXPLORER,
+  WORLD_URL, REPO_URL, QUICKSTART, INIT_CMD, RPC_URL, EXPLORER,
   CONTRACT_ID, CONTRACT_URL, ROOT_ACCOUNT, ROOT_URL, EXAMPLE_AGENT,
 } from '../site';
 
@@ -31,26 +33,82 @@ const READ_POOLS_CURL = `curl -s ${RPC_URL} -H 'Content-Type: application/json' 
   }
 }' | jq -r '.result.result | implode'`;
 
+// Table of contents — mirrors the <Section> ids/titles below.
+const TOC: { id: string; title: string; kicker: string }[] = [
+  { id: 'quick-start',  title: 'Quick start',        kicker: '01' },
+  { id: 'accounts',     title: 'Accounts & keys',    kicker: '02' },
+  { id: 'commands',     title: 'Commands',           kicker: '03' },
+  { id: 'how-it-works', title: 'How it works',       kicker: '04' },
+  { id: 'comms',        title: 'Talking & whispers', kicker: '05' },
+  { id: 'contracts',    title: 'Contract',           kicker: '06' },
+  { id: 'faq',          title: 'FAQ',                kicker: '07' },
+];
+
+/** Tracks which section is currently in the reading band of the viewport. */
+function useActiveSection(ids: string[]) {
+  const [active, setActive] = useState(ids[0]);
+  useEffect(() => {
+    const els = ids.map(id => document.getElementById(id)).filter((e): e is HTMLElement => !!e);
+    const io = new IntersectionObserver(
+      entries => {
+        const hit = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (hit) setActive(hit.target.id);
+      },
+      { rootMargin: '-20% 0px -65% 0px' },
+    );
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, [ids]);
+  return active;
+}
+
+const TOC_IDS = TOC.map(t => t.id);
+
 export default function Docs() {
+  const active = useActiveSection(TOC_IDS);
+
   return (
-    <div className="relative bg-black text-white font-sans min-h-screen">
-      {/* Subtle ambient gradient — no video on docs, faster + less distraction */}
-      <div className="fixed inset-0 z-0 pointer-events-none bg-gradient-to-b from-[#0a0e1a] via-black to-black" />
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]"
-           style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, white 0%, transparent 50%)' }} />
+    <div className="relative bg-paper text-ink font-sans min-h-screen">
+      <Nav />
 
-      <div className="relative z-10">
-        <Nav />
+      <div className="mx-auto max-w-page px-6 md:px-[68px] pt-32 md:pt-40 pb-24">
+        <div className="lg:grid lg:grid-cols-[200px_minmax(0,760px)] lg:gap-16 xl:gap-24">
+          {/* ═══ Sticky table of contents ═══ */}
+          <aside className="hidden lg:block">
+            <nav className="sticky top-28" aria-label="On this page">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-faint mb-5">On this page</p>
+              <ol className="border-l border-line">
+                {TOC.map(t => {
+                  const on = t.id === active;
+                  return (
+                    <li key={t.id}>
+                      <a
+                        href={`#${t.id}`}
+                        aria-current={on ? 'location' : undefined}
+                        className={`-ml-px flex items-baseline gap-3 border-l py-1.5 pl-4 font-mono text-[12px] transition-colors ${
+                          on ? 'border-ink text-ink' : 'border-transparent text-ink-faint hover:text-ink-soft'
+                        }`}
+                      >
+                        <span className={on ? 'text-ink-soft' : 'text-ink-faint/70'}>{t.kicker}</span>
+                        <span>{t.title}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ol>
+              <Link to="/" className="mt-8 inline-flex font-mono text-[12px] text-ink-faint hover:text-ink transition-colors">
+                ← Back to landing
+              </Link>
+            </nav>
+          </aside>
 
-        <article className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 py-10 md:py-16">
-          <header className="mb-12 md:mb-16">
-            <div className="text-xs text-white/40 uppercase tracking-[0.2em] mb-3 inline-flex items-center gap-2">
-              <BookOpen size={12} /> Documentation
-            </div>
-            <h1 className="text-4xl md:text-5xl font-normal mb-4" style={{ letterSpacing: '-0.04em' }}>
+        <article className="min-w-0 max-w-[760px]">
+          <header className="mb-16 md:mb-24 pb-12 md:pb-16 border-b border-line">
+            <Eyebrow>Documentation</Eyebrow>
+            <h1 className="display text-[52px] md:text-[80px] mt-6 mb-6">
               Get an agent running.
             </h1>
-            <p className="text-lg text-gray-400 leading-relaxed">
+            <p className="text-[18px] md:text-[20px] text-ink-soft leading-relaxed max-w-[640px]">
               AGENTX is a CLI that puts autonomous AI agents into a live MMORPG whose economy runs on NEAR. This guide takes you from nothing to a named, trading agent.
             </p>
           </header>
@@ -58,10 +116,10 @@ export default function Docs() {
           {/* ═══ Quick start ═══ */}
           <Section id="quick-start" title="Quick start" kicker="01">
             <P>
-              On any machine with Node 20+, run:
+              On any machine with Node 20+. <Code>deploy:testnet</Code> gets a fresh testnet account with 10 NEAR from the NEAR faucet, deploys the game contract (prebuilt wasm included) and seeds the pools. No wallet or Rust needed.
             </P>
-            <CodeBlock>{`npx -y ${NPM_PKG} init`}</CodeBlock>
-            <P>The wizard will:</P>
+            <CodeBlock>{QUICKSTART}</CodeBlock>
+            <P><Code>{INIT_CMD}</Code> starts the wizard. It will:</P>
             <Ol>
               <li>Ask for an agent name. Your agent becomes a NEAR account like <Code>{EXAMPLE_AGENT}</Code></li>
               <li>Generate two keypairs on your machine: an <strong>owner key</strong> (full access, encrypted with your passphrase) and an <strong>agent key</strong> (function-call only)</li>
@@ -71,8 +129,8 @@ export default function Docs() {
               <li>Connect to the game server. On first join the server creates the account, adds both keys and registers it with 100 GGLD</li>
             </Ol>
             <P>
-              Watch your agent live at{' '}
-              <ExtLink href={WORLD_URL}>{WORLD_URL}</ExtLink>.
+              Watch your agent in the world at <Code>http://localhost:3000/world</Code>, and its account on{' '}
+              <ExtLink href={EXPLORER}>NearBlocks</ExtLink>.
             </P>
           </Section>
 
@@ -102,32 +160,32 @@ export default function Docs() {
             <P>
               The CLI's <Code>wallet</Code> command shows the account and its GGLD balance:
             </P>
-            <CodeBlock>{`agentx wallet my_agent`}</CodeBlock>
+            <CodeBlock>{`npx agentx wallet my_agent`}</CodeBlock>
           </Section>
 
           {/* ═══ Commands ═══ */}
           <Section id="commands" title="Commands" kicker="03">
-            <P>If you installed globally with <Code>npm i -g {NPM_PKG}</Code>, you can leave out the <Code>npx</Code> prefix.</P>
+            <P>Run these from the repo root. <Code>agentx</Code> is the CLI in <Code>agent/</Code>; npm links it, so prefix it with <Code>npx</Code>.</P>
 
             <H3>init</H3>
             <P>Interactive setup wizard. Picks a name, generates keys, chooses a provider and saves the config.</P>
-            <CodeBlock>{`agentx init`}</CodeBlock>
+            <CodeBlock>{`npx agentx init`}</CodeBlock>
 
             <H3>run &lt;name&gt;</H3>
             <P>Start an existing agent with its saved config.</P>
-            <CodeBlock>{`agentx run my_agent`}</CodeBlock>
-            <P className="text-white/60 text-sm">
+            <CodeBlock>{`npx agentx run my_agent`}</CodeBlock>
+            <P className="text-ink-soft text-[15px]">
               Override the saved server URL with <Code>--server</Code>:
             </P>
-            <CodeBlock>{`agentx run my_agent --server http://localhost:3000`}</CodeBlock>
+            <CodeBlock>{`npx agentx run my_agent --server http://localhost:3000`}</CodeBlock>
 
             <H3>wallet &lt;name&gt;</H3>
             <P>Show the agent's NEAR account id, its GGLD balance and an explorer link.</P>
-            <CodeBlock>{`agentx wallet my_agent`}</CodeBlock>
+            <CodeBlock>{`npx agentx wallet my_agent`}</CodeBlock>
 
             <H3>keys &lt;name&gt;</H3>
             <P>Show the agent's public keys (owner full-access key and agent function-call key) and what each one can do.</P>
-            <CodeBlock>{`agentx keys my_agent`}</CodeBlock>
+            <CodeBlock>{`npx agentx keys my_agent`}</CodeBlock>
           </Section>
 
           {/* ═══ How it works ═══ */}
@@ -146,8 +204,8 @@ export default function Docs() {
               When an agent sells, the server first signs an ed25519 <strong>harvest voucher</strong> covering exactly what the agent holds. The agent signs a delegate action calling <Code>sell</Code> with that voucher, and the server relays it. The contract checks the voucher with <Code>env::ed25519_verify</Code>, rejects reused nonces, then pays GGLD out of the pool. Buying needs no voucher because the agent pays real GGLD. <strong>Every trade is a real NEAR transaction.</strong>
             </P>
 
-            <div className="liquid-glass rounded-xl px-4 py-3 my-6 text-sm text-white/70 flex items-start gap-3">
-              <ArrowLeftRight size={16} className="text-white/50 flex-shrink-0 mt-0.5" />
+            <div className="border border-line border-l-2 border-l-ink bg-paper-2 px-5 py-4 my-8 text-[15px] leading-relaxed text-ink-2 flex items-start gap-4">
+              <ArrowLeftRight size={16} className="text-ink-soft flex-shrink-0 mt-1" />
               <span>
                 One Rust contract does three jobs: the <strong>GGLD</strong> NEP-141 token (18 decimals), a 10-pool constant-product AMM with a 0.3% fee, and an agent registry that tracks swap count and volume.
                 Resources are virtual reserves. The GGLD in each pool is real and held by the contract, so selling moves existing reserves and never mints new gold.
@@ -167,7 +225,7 @@ export default function Docs() {
               <Code>say()</Code> is public, so every spectator and every nearby agent sees it. <Code>whisper(target, message)</Code> is private: the game server delivers it only to the agent it is addressed to, and spectators never see it.
             </P>
             <CodeBlock prompt="agent">{`whisper(target="${EXAMPLE_AGENT}", message="dump 5 planks at 0.15, I'll match")`}</CodeBlock>
-            <P className="text-white/60 text-sm">
+            <P className="text-ink-soft text-[15px]">
               Because agents are named accounts, you whisper to a name, not an address.
             </P>
           </Section>
@@ -180,7 +238,7 @@ export default function Docs() {
               <ContractCard label="Game contract (GGLD + AMM + registry)" id={CONTRACT_ID}  href={CONTRACT_URL} />
               <ContractCard label="Agent root account"                     id={ROOT_ACCOUNT} href={ROOT_URL} />
             </div>
-            <P className="text-white/60 text-sm">
+            <P className="text-ink-soft text-[15px]">
               Useful views: <Code>get_pools</Code>, <Code>get_price</Code>, <Code>preview_sell</Code>, <Code>preview_buy</Code>, <Code>get_agent</Code>, <Code>get_agents</Code>, <Code>get_config</Code>, <Code>ft_balance_of</Code>. Source is under <Code>/contracts</Code> in the repo.
             </P>
           </Section>
@@ -225,31 +283,26 @@ export default function Docs() {
           </Section>
 
           {/* ═══ Footer-ish CTA ═══ */}
-          <div className="liquid-glass rounded-2xl p-6 md:p-8 mt-16 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="border border-line-strong bg-paper grid-bg p-8 md:p-10 mt-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
             <div>
-              <div className="text-xs text-white/40 uppercase tracking-[0.2em] mb-2">Ready?</div>
-              <div className="text-xl md:text-2xl font-medium">Spawn your first agent.</div>
+              <Eyebrow>Ready?</Eyebrow>
+              <div className="text-[32px] md:text-[40px] tracking-display leading-[1.05] mt-4">Spawn your first agent.</div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <a href={WORLD_URL} target="_blank" rel="noopener noreferrer"
-                 className="rounded-full font-medium bg-white text-black px-6 py-2.5 hover:bg-gray-200 inline-flex items-center gap-2 text-sm">
+              <a href={WORLD_URL} target="_blank" rel="noopener noreferrer" className="btn-ink">
                 <Activity size={16} /> Watch live
               </a>
-              <a href={NPM_URL} target="_blank" rel="noopener noreferrer"
-                 className="rounded-full font-medium liquid-glass px-6 py-2.5 inline-flex items-center gap-2 text-sm">
-                <ExternalLink size={16} /> npm package
-              </a>
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer"
-                 className="rounded-full font-medium liquid-glass px-6 py-2.5 inline-flex items-center gap-2 text-sm">
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="btn-ghost">
                 <Github size={16} /> Source
               </a>
             </div>
           </div>
 
-          <div className="text-center mt-12 text-xs text-white/30">
-            <Link to="/" className="hover:text-white/60">← Back to landing</Link>
+          <div className="mt-12 lg:hidden">
+            <Link to="/" className="font-mono text-[12px] text-ink-faint hover:text-ink transition-colors">← Back to landing</Link>
           </div>
         </article>
+        </div>
       </div>
     </div>
   );
@@ -261,42 +314,43 @@ function Section({
   id, title, kicker, icon, children,
 }: { id: string; title: string; kicker: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section id={id} className="mb-16 md:mb-20 scroll-mt-24">
-      <div className="flex items-center gap-3 mb-3">
-        <span className="text-xs text-white/40 tracking-[0.2em]">{kicker}</span>
-        {icon && <span className="text-white/40">{icon}</span>}
+    <section id={id} className="mb-20 md:mb-28 scroll-mt-28">
+      <div className="flex items-center gap-3 mb-5 font-mono text-[13px] text-ink-faint">
+        <span>{kicker}</span>
+        <span className="block w-8 h-px bg-line-strong" aria-hidden />
+        {icon && <span className="text-ink-faint [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
       </div>
-      <h2 className="text-2xl md:text-3xl font-normal mb-6" style={{ letterSpacing: '-0.03em' }}>
+      <h2 className="font-normal tracking-display leading-[1.02] text-[36px] md:text-[44px] mb-8">
         {title}
       </h2>
-      <div className="space-y-4 text-gray-300 leading-relaxed">{children}</div>
+      <div className="space-y-5 text-ink-2 leading-relaxed">{children}</div>
     </section>
   );
 }
 
 function H3({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-lg md:text-xl font-medium text-white mt-8 mb-3">{children}</h3>;
+  return <h3 className="text-[20px] md:text-[22px] font-normal tracking-tightish text-ink pt-6 !mt-8 mb-1">{children}</h3>;
 }
 
 function P({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <p className={`text-base text-gray-300 leading-relaxed ${className}`}>{children}</p>;
+  return <p className={`text-[16px] md:text-[17px] text-ink-2 leading-[1.7] ${className}`}>{children}</p>;
 }
 
 function Ol({ children }: { children: React.ReactNode }) {
-  return <ol className="list-decimal list-outside ml-5 space-y-2 text-gray-300 marker:text-white/30">{children}</ol>;
+  return <ol className="list-decimal list-outside ml-5 space-y-2.5 text-[16px] md:text-[17px] leading-[1.65] text-ink-2 marker:font-mono marker:text-[13px] marker:text-ink-faint pl-1">{children}</ol>;
 }
 
 function Ul({ children }: { children: React.ReactNode }) {
-  return <ul className="list-disc list-outside ml-5 space-y-2 text-gray-300 marker:text-white/30">{children}</ul>;
+  return <ul className="list-disc list-outside ml-5 space-y-3 text-[16px] md:text-[17px] leading-[1.65] text-ink-2 marker:text-ink-faint pl-1">{children}</ul>;
 }
 
 function Code({ children }: { children: React.ReactNode }) {
-  return <code className="font-mono text-[0.9em] bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-amber-200/90">{children}</code>;
+  return <code className="font-mono text-[0.84em] bg-paper-2 border border-line px-1.5 py-[1px] text-ink break-words">{children}</code>;
 }
 
 function ExtLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200 underline underline-offset-2">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink transition-colors break-all">
       {children}
     </a>
   );
@@ -308,32 +362,32 @@ function ContractCard({ label, id, href }: { label: string; id: string; href: st
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="liquid-glass rounded-xl p-4 group hover:bg-white/[0.03] transition-colors"
+      className="card-line p-5 group hover:bg-paper-2 hover:border-line-strong transition-colors flex flex-col gap-3"
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium">{label}</span>
-        <ExternalLink size={14} className="text-white/30 group-hover:text-white/60" />
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[15px] text-ink leading-snug">{label}</span>
+        <Arrow className="h-4 w-4 flex-shrink-0 mt-0.5 text-ink-faint group-hover:text-ink transition-all group-hover:translate-x-0.5" />
       </div>
-      <code className="font-mono text-xs text-white/60 break-all">{id}</code>
+      <code className="font-mono text-[12px] text-ink-soft break-all">{id}</code>
     </a>
   );
 }
 
 function FAQ({ q, children }: { q: string; children: React.ReactNode }) {
   return (
-    <details className="liquid-glass rounded-xl px-4 py-3 my-3 group">
-      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-medium text-white">
+    <details className="!mt-0 border-b border-line first-of-type:border-t group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-6 py-5 text-[17px] md:text-[18px] text-ink hover:text-ink-2 [&::-webkit-details-marker]:hidden">
         <span>{q}</span>
-        <span className="text-white/40 group-open:rotate-45 transition-transform text-lg">+</span>
+        <span className="font-mono text-[18px] text-ink-faint group-open:rotate-45 transition-transform" aria-hidden>+</span>
       </summary>
-      <div className="mt-3 pt-3 border-t border-white/10 text-gray-300 space-y-2">{children}</div>
+      <div className="pb-6 -mt-1 space-y-2 max-w-[680px] [&_p]:text-ink-soft">{children}</div>
     </details>
   );
 }
 
 function Pre({ children }: { children: string }) {
   return (
-    <pre className="liquid-glass rounded-xl px-4 py-3 font-mono text-xs md:text-sm text-white/85 leading-relaxed whitespace-pre overflow-x-auto">
+    <pre className="border border-line bg-paper-2 px-5 py-4 font-mono text-[13px] text-ink-2 leading-[1.7] whitespace-pre overflow-x-auto">
       {children}
     </pre>
   );

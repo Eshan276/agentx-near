@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, createContext, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Maximize2,
   AtSign, Pickaxe, ArrowLeftRight, Network, KeyRound, Fuel, Coins, ShieldCheck, Timer,
-  CheckCircle2, ExternalLink, Terminal, Zap,
+  Check, ExternalLink, Terminal, Zap,
 } from 'lucide-react';
+import { Eyebrow, Wordmark, LiveDot, Arrow } from '../components/landing/ui';
 import {
-  NPM_PKG, CONTRACT_ID, CONTRACT_URL, ROOT_ACCOUNT, ROOT_URL, EXAMPLE_AGENT,
+  INIT_CMD, CONTRACT_ID, CONTRACT_URL, ROOT_ACCOUNT, ROOT_URL, EXAMPLE_AGENT,
 } from '../site';
 
 const REPO_SHORT = 'github.com/Eshan276/agentx-near';
@@ -80,7 +81,7 @@ const SLIDES: SlideDef[] = [
     layout: 'demo',
     kicker: '04 · Live demo',
     title: 'Spawn an agent in one command.',
-    command: `npx -y ${NPM_PKG} init`,
+    command: INIT_CMD,
     bullets: [
       'CLI asks for a name, persona and LLM provider.',
       'Owner and agent keys are generated on your laptop.',
@@ -196,7 +197,7 @@ const SLIDES: SlideDef[] = [
     id: 'cta',
     layout: 'hero',
     kicker: 'Try it',
-    title: `npx -y ${NPM_PKG} init`,
+    title: INIT_CMD,
     subtitle: 'Spawn your own named, gasless, on-chain agent.',
     cta: {
       primary:   REPO_SHORT,
@@ -204,6 +205,36 @@ const SLIDES: SlideDef[] = [
     },
   },
 ];
+
+// Slides that flip to the dark "night" surface for contrast (code + architecture).
+const DARK_SLIDES = new Set(['economy', 'arch']);
+
+const Dark = createContext(false);
+/** Token set for the current slide surface. */
+function useTone() {
+  const dark = useContext(Dark);
+  return dark
+    ? {
+        dark,
+        text:   'text-night-text',
+        soft:   'text-night-soft',
+        faint:  'text-night-soft/70',
+        border: 'border-night-line',
+        card:   'border border-night-line bg-night-2/70',
+        panel:  'border border-night-line bg-night-2',
+        hover:  'hover:bg-night-2',
+      }
+    : {
+        dark,
+        text:   'text-ink',
+        soft:   'text-ink-soft',
+        faint:  'text-ink-faint',
+        border: 'border-line',
+        card:   'border border-line bg-paper',
+        panel:  'border border-line bg-paper-2',
+        hover:  'hover:bg-paper-2',
+      };
+}
 
 export default function Deck() {
   const [idx, setIdx] = useState(0);
@@ -225,71 +256,95 @@ export default function Deck() {
   }, [next, prev, total]);
 
   const slide = SLIDES[idx];
+  const dark  = DARK_SLIDES.has(slide.id);
+
+  const chrome = dark
+    ? 'border-night-line bg-night-2/80 text-night-text hover:bg-night-2'
+    : 'border-line-strong bg-paper/80 text-ink-2 hover:bg-paper-2';
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none">
-      {/* Ambient gradient backdrop — calmer than the landing video so text reads on every slide */}
-      <div className="fixed inset-0 z-0 pointer-events-none bg-gradient-to-b from-[#0a0e1a] via-black to-black" />
+    <Dark.Provider value={dark}>
+      <style>{`@keyframes deckIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}`}</style>
       <div
-        className="fixed inset-0 z-0 pointer-events-none opacity-[0.06]"
-        style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, white 0%, transparent 60%)' }}
-      />
-
-      {/* Top bar */}
-      <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4">
-        <Link to="/" className="text-sm tracking-[0.25em] font-semibold text-white/80 hover:text-white">
-          AGENTX
-        </Link>
-        <div className="text-xs text-white/40 tracking-wider">{String(idx + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</div>
-        <button
-          onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
-          className="liquid-glass w-9 h-9 rounded-full flex items-center justify-center text-white/70 hover:text-white"
-          aria-label="Fullscreen"
-        >
-          <Maximize2 size={14} />
-        </button>
-      </header>
-
-      {/* Slide */}
-      <main key={slide.id} className="relative z-10 w-full h-full flex items-center justify-center px-6 md:px-16 pt-16 pb-20 animate-slide-fade-in">
-        <Slide slide={slide} />
-      </main>
-
-      {/* Progress dots */}
-      <div className="absolute bottom-8 left-0 right-0 z-40 flex items-center justify-center gap-1.5">
-        {SLIDES.map((s, i) => (
+        className={`relative w-screen h-screen overflow-hidden font-sans select-none transition-colors duration-500 ${
+          dark ? 'bg-night text-night-text hatch-dark' : 'bg-paper text-ink grid-bg'
+        }`}
+      >
+        {/* Top bar */}
+        <header className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 h-16 border-b ${dark ? 'border-night-line' : 'border-line'}`}>
+          <Link to="/" className={`transition-opacity hover:opacity-70 ${dark ? '[&_span.font-mono]:text-night-soft' : ''}`}>
+            <Wordmark />
+          </Link>
+          <div className={`font-mono text-[13px] tabular-nums ${dark ? 'text-night-soft' : 'text-ink-soft'}`} aria-live="polite">
+            <span className={dark ? 'text-night-text' : 'text-ink'}>{String(idx + 1).padStart(2, '0')}</span>
+            {' / '}
+            {String(total).padStart(2, '0')}
+          </div>
           <button
-            key={s.id}
-            onClick={() => setIdx(i)}
-            className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-8 bg-white' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
-            aria-label={`Go to slide ${i + 1}`}
-          />
-        ))}
-      </div>
+            onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
+            className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${chrome}`}
+            aria-label="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+        </header>
 
-      {/* Prev/Next */}
-      <button
-        onClick={prev}
-        disabled={idx === 0}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-40 liquid-glass w-12 h-12 rounded-full flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30"
-        aria-label="Previous slide"
-      >
-        <ArrowLeft size={18} />
-      </button>
-      <button
-        onClick={next}
-        disabled={idx === total - 1}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-40 liquid-glass w-12 h-12 rounded-full flex items-center justify-center text-white/70 hover:text-white disabled:opacity-30"
-        aria-label="Next slide"
-      >
-        <ArrowRight size={18} />
-      </button>
+        {/* Slide */}
+        <main
+          key={slide.id}
+          className="relative z-10 w-full h-full flex px-8 md:px-24 pt-24 pb-24 overflow-y-auto animate-[deckIn_.55s_cubic-bezier(.2,.7,.2,1)_both] motion-reduce:animate-none"
+        >
+          {/* m-auto centres the slide but still lets tall slides scroll from the top */}
+          <div className="m-auto w-full flex justify-center">
+            <Slide slide={slide} />
+          </div>
+        </main>
 
-      {/* Hint */}
-      <div className="absolute bottom-8 right-6 z-40 text-[10px] text-white/30 tracking-wider hidden md:block">
-        ←/→ or space · F for fullscreen
+        {/* Progress */}
+        <div className="absolute bottom-8 left-0 right-0 z-40 flex items-center justify-center gap-1">
+          {SLIDES.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => setIdx(i)}
+              className="group py-2 px-0.5"
+              aria-label={`Go to slide ${i + 1}`}
+              aria-current={i === idx ? 'step' : undefined}
+            >
+              <span
+                className={`block h-[2px] transition-all duration-300 ${
+                  i === idx
+                    ? `w-8 ${dark ? 'bg-night-text' : 'bg-ink'}`
+                    : `w-4 ${dark ? 'bg-night-line group-hover:bg-night-soft' : 'bg-line-strong group-hover:bg-ink-faint'}`
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+
+        {/* Prev/Next */}
+        <button
+          onClick={prev}
+          disabled={idx === 0}
+          className={`absolute left-4 md:left-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 rounded-full border flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none ${chrome}`}
+          aria-label="Previous slide"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <button
+          onClick={next}
+          disabled={idx === total - 1}
+          className={`absolute right-4 md:right-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 rounded-full border flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none ${chrome}`}
+          aria-label="Next slide"
+        >
+          <ArrowRight size={16} />
+        </button>
+
+        {/* Hint */}
+        <div className={`absolute bottom-8 right-6 md:right-12 z-40 font-mono text-[11px] hidden md:block ${dark ? 'text-night-soft' : 'text-ink-faint'}`}>
+          ←/→ or space · F for fullscreen
+        </div>
       </div>
-    </div>
+    </Dark.Provider>
   );
 }
 
@@ -312,39 +367,68 @@ function Slide({ slide }: { slide: SlideDef }) {
 
 // ── Slide layouts ───────────────────────────────────────────────────────────
 
-function Kicker({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs text-white/40 uppercase tracking-[0.3em] mb-6">{children}</div>;
+function Kicker({ children, center = false }: { children: React.ReactNode; center?: boolean }) {
+  const { dark } = useTone();
+  return (
+    <div className={`mb-8 ${center ? 'flex justify-center' : ''}`}>
+      <Eyebrow dark={dark} center={center}>{children}</Eyebrow>
+    </div>
+  );
 }
 
-function Title({ children, large = false }: { children: React.ReactNode; large?: boolean }) {
+/** Two-tone split: explicit newline, else first sentence / rest ("One agent." / "Three loops."). */
+function splitTitle(title: string): [string, string?] {
+  if (title.includes('\n')) {
+    const [a, ...rest] = title.split('\n');
+    return [a, rest.join(' ')];
+  }
+  const m = title.match(/^(.+?\.)\s+(.+)$/);
+  return m ? [m[1], m[2]] : [title];
+}
+
+function Title({ children, large = false }: { children: string; large?: boolean }) {
+  const { soft } = useTone();
+  const [first, second] = splitTitle(children);
   return (
     <h1
-      className={`font-normal text-white whitespace-pre-line leading-[1.05] ${large ? 'text-5xl md:text-7xl lg:text-8xl' : 'text-4xl md:text-5xl lg:text-6xl'}`}
-      style={{ letterSpacing: '-0.04em' }}
+      className={`font-normal tracking-display ${
+        large ? 'leading-[0.94] text-[52px] md:text-[88px] lg:text-[112px]' : 'leading-[1] text-[40px] md:text-[60px] lg:text-[72px]'
+      }`}
     >
-      {children}
+      <span className="block">{first}</span>
+      {second && <span className={`block ${soft}`}>{second}</span>}
     </h1>
   );
 }
 
 function HeroSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
+  const isCommand = slide.title === INIT_CMD;
   return (
-    <div className="max-w-5xl text-center">
+    <div className="w-full max-w-6xl">
       <Kicker>{slide.kicker}</Kicker>
-      <Title large>{slide.title}</Title>
+      {isCommand ? (
+        <h1 className={`${t.panel} inline-flex items-center gap-4 md:gap-6 px-6 md:px-10 py-6 md:py-8 font-mono font-normal tracking-tight text-[24px] md:text-[40px] lg:text-[52px] leading-none max-w-full overflow-x-auto whitespace-nowrap`}>
+          <span className={t.faint} aria-hidden>$</span>
+          {slide.title}
+        </h1>
+      ) : (
+        <Title large>{slide.title}</Title>
+      )}
       {slide.subtitle && (
-        <p className="text-lg md:text-2xl text-gray-400 mt-8 max-w-3xl mx-auto">
+        <p className={`text-[18px] md:text-[24px] leading-[1.45] ${t.soft} mt-10 max-w-3xl`}>
           {slide.subtitle}
         </p>
       )}
       {slide.cta && (
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-12">
-          <span className="liquid-glass rounded-full px-6 py-3 text-sm md:text-base text-white font-medium">
+        <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 mt-12 pt-8 border-t ${t.border} max-w-3xl`}>
+          <span className="inline-flex items-center gap-2 rounded-full bg-ink text-paper px-5 h-11 font-mono text-[13px] md:text-[14px]">
             {slide.cta.primary}
+            <Arrow className="h-3.5 w-3.5" />
           </span>
           {slide.cta.secondary && (
-            <span className="text-sm md:text-base text-white/50">
-              {slide.cta.secondary}
+            <span className={`inline-flex items-center gap-2 font-mono text-[13px] ${t.soft}`}>
+              <LiveDot /> {slide.cta.secondary}
             </span>
           )}
         </div>
@@ -354,51 +438,77 @@ function HeroSlide({ slide }: { slide: SlideDef }) {
 }
 
 function SplitSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
+  const card = slide.rightCard;
   return (
-    <div className="w-full max-w-7xl grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+    <div className="w-full max-w-7xl grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
       <div>
         <Kicker>{slide.kicker}</Kicker>
         <Title>{slide.title}</Title>
         {slide.body && (
-          <div className="text-base md:text-lg text-gray-300 mt-8 space-y-3 leading-relaxed max-w-xl">
+          <div className={`text-[16px] md:text-[18px] ${t.soft} mt-10 space-y-3 leading-relaxed max-w-xl`}>
             {slide.body.map((line, i) =>
               line === '' ? <div key={i} className="h-2" /> : <p key={i}>{line}</p>
             )}
           </div>
         )}
       </div>
-      {slide.rightCard && (
-        <div className="liquid-glass rounded-2xl p-6 md:p-8">
-          <div className="text-xs text-white/40 uppercase tracking-[0.2em] mb-4">{slide.rightCard.title}</div>
-          <ul className={slide.rightCard.monospace
-            ? 'font-mono text-xs md:text-sm text-amber-200/90 space-y-1.5 leading-relaxed'
-            : 'text-sm md:text-base text-white/80 space-y-3'}>
-            {slide.rightCard.points.map((p, i) =>
-              slide.rightCard!.monospace
-                ? <li key={i}>{p || ' '}</li>
-                : <li key={i} className="flex items-start gap-3"><CheckCircle2 size={16} className="text-green-400 flex-shrink-0 mt-0.5" />{p}</li>
-            )}
+      {card && (card.monospace ? (
+        // Code panel, like an editor window.
+        <div className={t.panel}>
+          <div className={`flex items-center justify-between px-5 h-12 border-b ${t.border}`}>
+            <div className="flex gap-2" aria-hidden>
+              {[0, 1, 2].map(i => <span key={i} className={`h-2.5 w-2.5 rounded-full ${t.dark ? 'bg-night-line' : 'bg-line-strong'}`} />)}
+            </div>
+            <span className={`font-mono text-[12px] ${t.soft}`}>{card.title}</span>
+          </div>
+          <ol className="py-5 font-mono text-[12px] md:text-[13px] leading-[1.8] overflow-x-auto">
+            {card.points.map((p, i) => (
+              <li key={i} className="flex whitespace-pre">
+                <span className={`w-12 shrink-0 pr-4 text-right select-none ${t.faint}`}>{i + 1}</span>
+                <span className={p.trimStart().startsWith('//') ? t.soft : t.text}>{p || ' '}</span>
+              </li>
+            ))}
+          </ol>
+          <div className={`flex items-center gap-2 px-5 h-11 border-t ${t.border} font-mono text-[12px] ${t.soft}`}>
+            <LiveDot /> NEAR testnet
+          </div>
+        </div>
+      ) : (
+        <div className={`${t.card} p-7 md:p-10`}>
+          <div className={`font-mono text-[12px] ${t.soft} mb-6`}>{card.title}</div>
+          <ul className={`divide-y ${t.dark ? 'divide-night-line' : 'divide-line'}`}>
+            {card.points.map((p, i) => (
+              <li key={i} className="flex items-start gap-4 py-4 text-[16px] md:text-[18px]">
+                <Check size={18} className="flex-shrink-0 mt-1" />
+                {p}
+              </li>
+            ))}
           </ul>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
 function CenterSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
-    <div className="max-w-4xl text-center">
-      <Kicker>{slide.kicker}</Kicker>
+    <div className="max-w-5xl text-center">
+      <Kicker center>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
       {slide.subtitle && (
-        <p className="text-lg md:text-xl text-gray-400 mt-8 max-w-3xl mx-auto leading-relaxed">
+        <p className={`text-[18px] md:text-[21px] ${t.soft} mt-10 max-w-3xl mx-auto leading-relaxed`}>
           {slide.subtitle}
         </p>
       )}
       {slide.chips && (
         <div className="flex flex-wrap items-center justify-center gap-3 mt-12">
           {slide.chips.map((c, i) => (
-            <span key={i} className="liquid-glass rounded-full px-5 py-2.5 text-sm md:text-base text-white/90 inline-flex items-center gap-2">
+            <span
+              key={i}
+              className={`rounded-full border ${t.dark ? 'border-night-line' : 'border-line-strong bg-paper'} px-5 h-11 text-[15px] inline-flex items-center gap-2.5`}
+            >
               <ChipIcon name={c.icon} />
               {c.label}
             </span>
@@ -410,71 +520,85 @@ function CenterSlide({ slide }: { slide: SlideDef }) {
 }
 
 function ChipIcon({ name }: { name?: string }) {
-  if (name === 'at')     return <AtSign size={16} className="text-white/70" />;
-  if (name === 'key')    return <KeyRound size={16} className="text-purple-300" />;
-  if (name === 'fuel')   return <Fuel size={16} className="text-green-400" />;
-  if (name === 'chain')  return <Network size={16} className="text-blue-300" />;
-  if (name === 'bolt')   return <Zap size={14} className="text-amber-300" />;
+  const { soft } = useTone();
+  if (name === 'at')     return <AtSign size={15} className={soft} />;
+  if (name === 'key')    return <KeyRound size={15} className={soft} />;
+  if (name === 'fuel')   return <Fuel size={15} className={soft} />;
+  if (name === 'chain')  return <Network size={15} className={soft} />;
+  if (name === 'bolt')   return <Zap size={14} className={soft} />;
   return null;
 }
 
+/** Ruled grid: cells share 1px borders, like a spec sheet. */
+function RuledGrid({ cols, children }: { cols: string; children: React.ReactNode }) {
+  const t = useTone();
+  return <div className={`grid ${cols} border-l border-t ${t.border}`}>{children}</div>;
+}
+
 function ThreeUpSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
     <div className="w-full max-w-7xl">
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
-      <div className="grid md:grid-cols-3 gap-5 mt-12">
-        {slide.cards!.map((c, i) => (
-          <div key={i} className="liquid-glass rounded-2xl p-6 md:p-8 flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-white/80">{c.icon}</div>
-              <span className="text-xs text-white/30 tracking-[0.2em]">{c.step}</span>
+      <div className="mt-14">
+        <RuledGrid cols="md:grid-cols-3">
+          {slide.cards!.map((c, i) => (
+            <div key={i} className={`border-r border-b ${t.border} ${t.dark ? '' : 'bg-paper'} p-7 md:p-9 flex flex-col`}>
+              <div className="flex items-center justify-between mb-10">
+                <div className={`${t.text} [&>svg]:h-6 [&>svg]:w-6 [&>svg]:stroke-[1.5]`}>{c.icon}</div>
+                <span className={`font-mono text-[13px] ${t.faint}`}>{c.step}</span>
+              </div>
+              <h3 className="text-[24px] md:text-[28px] tracking-tightish leading-tight mb-3">{c.title}</h3>
+              <p className={`text-[15px] md:text-[16px] ${t.soft} leading-relaxed`}>{c.body}</p>
             </div>
-            <h3 className="text-xl md:text-2xl font-medium mb-3">{c.title}</h3>
-            <p className="text-sm md:text-base text-gray-400 leading-relaxed">{c.body}</p>
-          </div>
-        ))}
+          ))}
+        </RuledGrid>
       </div>
     </div>
   );
 }
 
 function GridSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
     <div className="w-full max-w-7xl">
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10">
-        {slide.cards!.map((c, i) => (
-          <div key={i} className="liquid-glass rounded-2xl p-5 md:p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-white/80">{c.icon}</div>
-              <span className="text-[10px] text-white/40 uppercase tracking-[0.2em]">{c.step}</span>
+      <div className="mt-12">
+        <RuledGrid cols="sm:grid-cols-2 lg:grid-cols-3">
+          {slide.cards!.map((c, i) => (
+            <div key={i} className={`border-r border-b ${t.border} ${t.dark ? '' : 'bg-paper'} p-6 md:p-7 flex flex-col`}>
+              <div className="flex items-center justify-between mb-6">
+                <div className={`${t.text} [&>svg]:h-5 [&>svg]:w-5 [&>svg]:stroke-[1.5]`}>{c.icon}</div>
+                <span className={`font-mono text-[11px] ${t.faint}`}>{c.step}</span>
+              </div>
+              <h3 className="text-[19px] md:text-[21px] tracking-tightish mb-2">{c.title}</h3>
+              <p className={`text-[14px] md:text-[15px] ${t.soft} leading-relaxed`}>{c.body}</p>
             </div>
-            <h3 className="text-lg md:text-xl font-medium mb-2">{c.title}</h3>
-            <p className="text-sm text-gray-400 leading-relaxed">{c.body}</p>
-          </div>
-        ))}
+          ))}
+        </RuledGrid>
       </div>
     </div>
   );
 }
 
 function DemoSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
     <div className="w-full max-w-6xl">
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
-      <div className="mt-8 md:mt-10 liquid-glass rounded-2xl px-5 md:px-8 py-5 md:py-7 flex items-center gap-4">
-        <Terminal size={20} className="text-green-400 flex-shrink-0" />
-        <code className="font-mono text-lg md:text-2xl text-white flex-1 overflow-x-auto whitespace-nowrap">
+      <div className={`mt-10 md:mt-12 ${t.panel} px-6 md:px-8 py-6 md:py-7 flex items-center gap-5`}>
+        <Terminal size={20} className={`${t.soft} flex-shrink-0`} />
+        <code className="font-mono text-[18px] md:text-[26px] flex-1 overflow-x-auto whitespace-nowrap">
           $ {slide.command}
         </code>
       </div>
-      <ul className="mt-8 grid sm:grid-cols-2 gap-x-8 gap-y-3">
+      <ul className="mt-10 grid sm:grid-cols-2 gap-x-12">
         {slide.bullets!.map((b, i) => (
-          <li key={i} className="flex items-start gap-3 text-base md:text-lg text-white/85">
-            <CheckCircle2 size={18} className="text-green-400 flex-shrink-0 mt-1" />
+          <li key={i} className={`flex items-start gap-4 py-3.5 border-b ${t.border} text-[16px] md:text-[18px]`}>
+            <span className={`font-mono text-[12px] ${t.faint} mt-1.5 w-5 shrink-0`}>{String(i + 1).padStart(2, '0')}</span>
             <span>{b}</span>
           </li>
         ))}
@@ -484,12 +608,18 @@ function DemoSlide({ slide }: { slide: SlideDef }) {
 }
 
 function ArchSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
-    <div className="w-full max-w-6xl">
-      <Kicker>{slide.kicker}</Kicker>
-      <Title>{slide.title}</Title>
-      <div className="mt-10 liquid-glass rounded-2xl p-6 md:p-10">
-        <pre className="font-mono text-xs md:text-sm text-white/85 leading-relaxed whitespace-pre overflow-x-auto">{`┌────────────────────────────────────────────────┐
+    <div className="w-full max-w-7xl grid xl:grid-cols-[minmax(0,1fr)_auto] gap-10 xl:gap-16 items-center">
+      <div>
+        <Kicker>{slide.kicker}</Kicker>
+        <Title>{slide.title}</Title>
+      </div>
+      <div className={`${t.panel} min-w-0`}>
+        <div className={`flex items-center gap-2 px-5 h-10 border-b ${t.border}`} aria-hidden>
+          {[0, 1, 2].map(i => <span key={i} className={`h-2.5 w-2.5 rounded-full ${t.dark ? 'bg-night-line' : 'bg-line-strong'}`} />)}
+        </div>
+        <pre className={`px-6 md:px-8 py-5 md:py-6 font-mono text-[11px] md:text-[12px] ${t.text} leading-[1.45] whitespace-pre overflow-x-auto`}>{`┌────────────────────────────────────────────────┐
 │ AGENT PROCESS (operator's laptop)              │
 │  agentx CLI → AgentLoop                        │
 │    │                                           │
@@ -526,54 +656,59 @@ function ArchSlide({ slide }: { slide: SlideDef }) {
 }
 
 function ProofSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
     <div className="w-full max-w-5xl">
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
-      <div className="mt-10 space-y-3">
+      <div className={`mt-12 border-t ${t.border}`}>
         {slide.contracts!.map((c, i) => (
           <a
             key={i}
             href={c.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="liquid-glass rounded-xl p-5 flex items-center justify-between gap-4 group hover:bg-white/[0.04]"
+            className={`flex items-center justify-between gap-6 py-6 px-2 border-b ${t.border} group transition-colors ${t.hover}`}
           >
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-sm md:text-base font-medium">{c.label}</span>
-                <span className="text-[10px] text-white/40 uppercase tracking-wider">{c.chain}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+                <span className="text-[18px] md:text-[22px] tracking-tightish">{c.label}</span>
+                <span className={`inline-flex items-center gap-2 font-mono text-[11px] ${t.soft}`}><LiveDot /> {c.chain}</span>
               </div>
-              <code className="font-mono text-xs md:text-sm text-white/60 break-all">{c.id}</code>
+              <code className={`font-mono text-[13px] md:text-[14px] ${t.soft} break-all`}>{c.id}</code>
             </div>
-            <ExternalLink size={16} className="text-white/30 group-hover:text-white/70 flex-shrink-0" />
+            <ExternalLink size={18} className={`${t.faint} ${t.dark ? 'group-hover:text-night-text' : 'group-hover:text-ink'} flex-shrink-0 transition-colors`} />
           </a>
         ))}
       </div>
-      <p className="mt-6 text-sm text-white/50">
-        Click either one to open NearBlocks. Every agent is a sub-account of <code className="font-mono text-amber-200/80">{ROOT_ACCOUNT}</code>, so all of them can be found from there.
+      <p className={`mt-8 text-[15px] ${t.soft} max-w-3xl leading-relaxed`}>
+        Click either one to open NearBlocks. Every agent is a sub-account of <code className={`font-mono text-[0.9em] ${t.text} border ${t.border} ${t.dark ? 'bg-night-2' : 'bg-paper-2'} px-1.5 py-px`}>{ROOT_ACCOUNT}</code>, so all of them can be found from there.
       </p>
     </div>
   );
 }
 
 function StackSlide({ slide }: { slide: SlideDef }) {
+  const t = useTone();
   return (
     <div className="w-full max-w-6xl">
       <Kicker>{slide.kicker}</Kicker>
       <Title>{slide.title}</Title>
-      <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mt-10">
-        {slide.sponsors!.map((s, i) => (
-          <div key={i} className="liquid-glass rounded-2xl p-5 md:p-6 flex flex-col">
-            <div className="text-lg md:text-xl font-semibold mb-1">{s.name}</div>
-            <div className="text-xs md:text-sm text-white/60 mb-3">{s.tag}</div>
-            {s.done && (
-              <span className="inline-flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider border text-green-400 bg-green-400/10 border-green-400/20">
-                <CheckCircle2 size={10} /> Live
-              </span>
-            )}
-          </div>
-        ))}
+      <div className="mt-12">
+        <RuledGrid cols="sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          {slide.sponsors!.map((s, i) => (
+            <div key={i} className={`border-r border-b ${t.border} ${t.dark ? '' : 'bg-paper'} p-6 md:p-7 flex flex-col min-h-[180px]`}>
+              <span className={`font-mono text-[11px] ${t.faint} mb-8`}>{String(i + 1).padStart(2, '0')}</span>
+              <div className="text-[22px] md:text-[24px] tracking-tightish mb-1">{s.name}</div>
+              <div className={`text-[14px] ${t.soft} mb-5`}>{s.tag}</div>
+              {s.done && (
+                <span className={`mt-auto inline-flex w-fit items-center gap-2 font-mono text-[11px] ${t.soft}`}>
+                  <LiveDot /> Live
+                </span>
+              )}
+            </div>
+          ))}
+        </RuledGrid>
       </div>
     </div>
   );
