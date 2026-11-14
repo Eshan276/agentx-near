@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 import { GameServer }   from './GameServer.js';
 import { logsHandler }  from './logsHandler.js';
-import { web3 }         from './Web3Manager.js';
+import { near }         from './NearManager.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PORT  = process.env.PORT || 3000;
@@ -30,24 +30,23 @@ app.get('/api/logs', (req, res) => {
 app.get('/api/prices', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.json({
-    ready:     web3.ready,
-    prices:    web3.ready ? web3.getCachedPrices()       : {},
-    history:   web3.ready ? web3.getPriceHistory()        : {},
-    contracts: web3.ready ? web3.getContractAddresses()   : null,
+    ready:     near.ready,
+    prices:    near.ready ? near.getCachedPrices()       : {},
+    history:   near.ready ? near.getPriceHistory()        : {},
+    contracts: near.getContractAddresses(),
   });
 });
 
-// AXL hub discovery — agent CLIs read this to bootstrap their spoke node.
-// Returns null when no hub is configured (env vars unset).
-app.get('/api/axl-hub', (req, res) => {
+// Which NEAR network/contract this server plays on — the CLI's `wallet` command reads it.
+app.get('/api/near', (_req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
-  const hubAddress = process.env.AXL_HUB_ADDRESS || null;
-  const hubPeerId  = process.env.AXL_HUB_PEER_ID  || null;
-  res.json({
-    ready: Boolean(hubAddress && hubPeerId),
-    hubAddress,
-    hubPeerId,
-  });
+  res.json({ ready: near.ready, ...(near.getContractAddresses() ?? {}) });
+});
+
+// Recent on-chain activity (account creations, sells, buys) with tx hashes.
+app.get('/api/feed', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({ feed: gameServer.chainFeed, chain: near.getContractAddresses() });
 });
 
 // ── Static client (production) ──────────────────────────────────────────────
@@ -66,8 +65,8 @@ if (CLIENT_DIST) {
 // ── HTTP + Socket.io ────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 
-// Init Web3 (non-blocking — server runs in API-only mode if env vars absent)
-web3.init().catch(e => console.error('[Web3] init error:', e.message));
+// Connect to NEAR (non-blocking — the world still runs without chain features if env vars are absent)
+near.init().catch(e => console.error('[NEAR] init error:', e.message));
 
 const gameServer = new GameServer(httpServer);
 
