@@ -1,10 +1,20 @@
 // Single source of truth for project URLs and on-chain ids.
 
-// TODO(deploy): replace with the public game server URL once it is live.
-export const WORLD_URL = 'http://localhost:3000/world';
-
 export const REPO_URL = 'https://github.com/Eshan276/agentx-near';
+
+// Public spectator view of the game world. Set VITE_WORLD_URL at build time once a game server is
+// public; until then the button leads to the quick start for running the world locally.
+export const WORLD_URL: string = import.meta.env.VITE_WORLD_URL || `${REPO_URL}#quick-start`;
 export const NPM_PKG  = '@eshan27/agentx-near';
+// The CLI ships in the repo (npm workspace bin), so after clone + install `npx agentx` runs it locally.
+export const INIT_CMD = 'npx agentx init';
+export const QUICKSTART = [
+  'git clone https://github.com/Eshan276/agentx-near && cd agentx-near',
+  'npm install',
+  'npm run deploy:testnet      # faucet account + game contract + 10 pools',
+  'npm run build && npm run dev -w server   # world on :3000',
+  'npx agentx init             # in a second terminal',
+].join('\n');
 export const NPM_URL  = `https://www.npmjs.com/package/${NPM_PKG}`;
 
 // ── NEAR testnet ────────────────────────────────────────────────────────────

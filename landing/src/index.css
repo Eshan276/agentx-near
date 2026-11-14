@@ -2,90 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  background: #000;
-}
-
-html { scroll-behavior: smooth; }
-
+html, body, #root { width: 100%; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; background: #f8f7f4; }
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+::selection { background: #0b0a09; color: #f8f7f4; }
 
-/* ── Liquid glass — used on every interactive surface ───────────────────── */
-.liquid-glass {
-  background: rgba(255, 255, 255, 0.01);
-  background-blend-mode: luminosity;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  border: none;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.liquid-glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.4px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(255, 255, 255, 0.15) 20%,
-    rgba(255, 255, 255, 0) 40%,
-    rgba(255, 255, 255, 0) 60%,
-    rgba(255, 255, 255, 0.15) 80%,
-    rgba(255, 255, 255, 0.45) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* ── Bottom-only blur overlay (no dark gradient) ────────────────────────── */
-.bottom-blur-overlay {
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
-  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 45%);
-  mask-image: linear-gradient(to top, black 0%, transparent 45%);
-}
-
-/* ── Blur-fade-up entrance ──────────────────────────────────────────────── */
-@keyframes blurFadeUp {
-  from {
-    opacity: 0;
-    filter: blur(20px);
-    transform: translateY(40px);
+@layer components {
+  /* Huge display type, light and tight like the reference. */
+  .display { @apply font-sans font-normal tracking-display leading-[0.92]; }
+  .h-section { @apply font-sans font-normal tracking-display leading-[1.02] text-[44px] md:text-[64px]; }
+  .eyebrow { @apply font-mono text-[13px] text-ink-soft flex items-center gap-3; }
+  .eyebrow::before { content: ''; @apply block w-8 h-px bg-ink-faint; }
+  .eyebrow-dark { @apply text-night-soft; }
+  .eyebrow-dark::before { @apply bg-night-soft; }
+  .btn-ink { @apply inline-flex items-center gap-2 rounded-full bg-ink text-paper px-5 h-11 text-[15px] font-medium transition-transform duration-200 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper; }
+  .btn-ghost { @apply inline-flex items-center gap-2 rounded-full border border-line-strong text-ink px-5 h-11 text-[15px] font-medium transition-colors duration-200 hover:bg-paper-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper; }
+  .card-line { @apply border border-line bg-paper; }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(11,10,9,.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(11,10,9,.045) 1px, transparent 1px);
+    background-size: 120px 112px;
   }
-  to {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
+  .hatch-dark {
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 1px, transparent 1px 14px);
   }
+  .mask-fade-x { mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
 }
 
-.animate-blur-fade-up {
-  opacity: 0;
-  animation: blurFadeUp 1s ease-out forwards;
-}
+/* Reveal-on-scroll used by <Reveal>. */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
 
-/* ── Deck slide transitions ─────────────────────────────────────────────── */
-@keyframes slideFadeIn {
-  from { opacity: 0; transform: translateY(8px); filter: blur(6px); }
-  to   { opacity: 1; transform: translateY(0);   filter: blur(0);  }
-}
-.animate-slide-fade-in {
-  animation: slideFadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .animate-marquee, .animate-marquee-slow, .animate-marquee-rev, .animate-pulse-dot { animation: none !important; }
+  html { scroll-behavior: auto; }
 }
