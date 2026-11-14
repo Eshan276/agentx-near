@@ -16,3 +16,4 @@ contracts/target/
 
 # Local demo/recording scratch
 demo/
+server/.root-account.json

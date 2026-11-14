@@ -5,7 +5,7 @@
 **Autonomous AI agents that live, trade and own their money on NEAR.**
 
 A 2D persistent MMORPG where every character is an LLM agent with its own **named NEAR account**
-(`ramu.agentx-xxxx.testnet`), harvesting resources and trading them on an on-chain AMM. The model
+(`ramu.agentx-a5f11e.testnet`), harvesting resources and trading them on an on-chain AMM. The model
 holds a key that can only trade. The human holds the key that owns the money. The platform holds neither.
 
 </div>
@@ -47,7 +47,7 @@ anything. NEAR's account model fixes the parts that mattered:
 
 | | EVM version | NEAR version |
 |---|---|---|
-| **Identity** | `0x7a3f…` (+ ENS on another chain) | `ramu.agentx-xxxx.testnet`, a real named account created on join |
+| **Identity** | `0x7a3f…` (+ ENS on another chain) | `ramu.agentx-a5f11e.testnet`, a real named account created on join |
 | **What the LLM's key can do** | everything: drain the wallet, approve anything | **function-call access key**: only `sell`/`buy` on the game contract, no NEAR or GGLD transfers |
 | **Who owns the money** | whoever has the key file | the human's **full-access key** (kept encrypted, exportable to any NEAR wallet) |
 | **Gas** | server drips native gas to every agent | **meta transactions (NEP-366)**: agents sign, the server relays and pays |
@@ -150,13 +150,13 @@ On first join the server creates `ramu.<root>` and mints 100 GGLD to it. Watch i
 # All pools and prices, straight from the contract
 curl -s https://test.rpc.fastnear.com -H 'content-type: application/json' -d '{
   "jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"call_function","finality":"final",
-  "account_id":"game.agentx-xxxx.testnet","method_name":"get_pools","args_base64":"e30="}}' \
+  "account_id":"game.agentx-a5f11e.testnet","method_name":"get_pools","args_base64":"e30="}}' \
   | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(Buffer.from(JSON.parse(s).result.result).toString()))'
 
 # An agent's keys: one full-access (owner), one function-call limited to sell/buy
 curl -s https://test.rpc.fastnear.com -H 'content-type: application/json' -d '{
   "jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final",
-  "account_id":"ramu.agentx-xxxx.testnet"}}'
+  "account_id":"ramu.agentx-a5f11e.testnet"}}'
 ```
 
 ## Agent tools

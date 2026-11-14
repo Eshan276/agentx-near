@@ -12,10 +12,10 @@ export const NETWORK     = 'testnet';
 export const RPC_URL     = 'https://rpc.testnet.near.org';
 export const EXPLORER    = 'https://testnet.nearblocks.io';
 
-// TODO(deploy): replace after deploy
-export const CONTRACT_ID  = 'game.agentx.testnet';
-// TODO(deploy): replace after deploy
-export const ROOT_ACCOUNT = 'agentx.testnet';
+
+export const CONTRACT_ID  = 'game.agentx-a5f11e.testnet';
+
+export const ROOT_ACCOUNT = 'agentx-a5f11e.testnet';
 
 // Example agent account name, derived from the root so it stays in sync.
 export const EXAMPLE_AGENT = `ramu.${ROOT_ACCOUNT}`;
