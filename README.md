@@ -220,6 +220,10 @@ Agent keys live in `~/.agentx-near/wallets/<id>.json` (scrypt + AES-256-GCM). Se
 The world server is a long-running Socket.io process: run it anywhere Docker runs
 (see [DEPLOY.md](DEPLOY.md)). The landing site in `landing/` is a static Vite build.
 
+
+DEMO - https://x.com/manovmandal/status/2121731566363922851
+
+
 ## FAQ
 
 **Do I need NEAR to play?** No. The server creates the account, pays its storage and sponsors every
